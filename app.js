@@ -301,7 +301,7 @@ app.post('/upload/addActl', uploadS3Activity, async function(req, res){
 		await dao.insert('activity', actlData);
 		mysql.con.commit(function(err){
 			if(err){
-				res.json({status: 500, error: "Add activity failed."});
+				res.json({status: 500, error: "Add activity error."});
 				return mysql.con.rollback(function(err){errMsg(err);});
 			}else{
 				res.json({status: 200, data: dataPackage});
@@ -325,7 +325,7 @@ app.post('/upload/editActl', uploadS3Activity, async function(req, res){
 		if(oldPath[0].main_img){
 			let params = {Bucket:'seventz002', Delete: {Objects:[{Key: oldPath[0].main_img.split(cst.admin.S3_BUCKET)[1]}]}};
 			s3.deleteObjects(params, function(err, data){
-				if(err) console.log(err, err.stack);  // error
+				if(err) console.log(err, err.stack);
 				else{console.log(data);}
 			});
 		}
@@ -462,7 +462,7 @@ app.post('/user/signin', async function(req, res){
 			}
 		});
 	}else{
-		res.json({error:"Invalid provider."});
+		res.json({status: 400, error:"Invalid provider."});
 	}
 });
 app.post('/user/signup', async function(req, res){
@@ -549,36 +549,40 @@ app.get('/user/activity', function(req, res){
 
 app.post('/user/status/:action', bearerToken, async function(req, res){
 	let {action} = req.params;
-	let {actl_id} = req.body;
-	// if(action != 'like' || action != 'attend') res.json({error: "Invalid request."});
-	let dataPackage = {actl_id: actl_id};
-	if(!req.token) res.json({error: "Access denied without token."});
+	let dataPackage = {
+		actl_id: req.body.actl_id,
+		user_id: null,
+		status: null
+	};
+
+	if(action!='like' && action!='join'){return res.json({status: 400, error: "Invalid request."});}
+	if(!req.token){return res.json({status: 403, error: "Access denied without token."});}
 	
 	let userData = await mysql.queryp(`SELECT user_id FROM user WHERE access_token = '${req.token}';`, null, errMsg);
-	if(!userData.length === 0) res.json({erorr: "Invalid token."})
-	else{
-		let user_id = userData[0].user_id;
-		dataPackage.user_id = user_id;
-		let status = '';
-		if(action==='like'||action==='liked'){status = 'liked';}
-		else if(action==='join'||action==='joined'){status = 'joined';}
-		dataPackage.status = status;
-		console.log(dataPackage)
-		let query = "SELECT * FROM activity WHERE user_id = ? AND actl_id = ? AND status = ?";
-		
-		let activityStatus = await mysql.queryp(query, [user_id, actl_id, status], errMsg);
-		if(activityStatus.length===0){
-			dataPackage.id = null;
-			mysql.queryp(`INSERT INTO activity SET ?`, dataPackage, errMsg).then(function(){
-				res.json({message: 'added'});
-			}).catch(function(error){
-				console.log(error);
-				res.json({error: "Insert data error."})
-			});
-		}else{
-			res.json({message: 'removed'});
-			mysql.query(`DELETE FROM activity WHERE user_id = ? AND actl_id = ? AND status = ?`, [user_id, actl_id, status], errMsg);
-		}
+	if(userData.length===0){return res.json({status: 403, erorr: "Invalid token."});}
+	
+	dataPackage.user_id = userData[0].user_id;
+
+	if(action==='like'||action==='liked'){dataPackage.status = 'liked';}
+	else if(action==='join'||action==='joined'){dataPackage.status = 'joined';}
+
+	let query = "SELECT * FROM activity WHERE user_id = ? AND actl_id = ? AND status = ?";
+	
+	let activityStatus = await mysql.queryp(query, [dataPackage.user_id, dataPackage.actl_id, dataPackage.status], errMsg);
+	if(activityStatus.length===0){
+		dataPackage.id = null;
+		mysql.queryp(`INSERT INTO activity SET ?`, dataPackage, errMsg).then(function(){
+			res.json({status: 200, message: 'added'});
+		}).catch(function(){
+			res.json({status: 500, error: "Insert data error."})
+		});
+	}else{
+		query = "DELETE FROM activity WHERE user_id = ? AND actl_id = ? AND status = ?";
+		mysql.queryp(query, [dataPackage.user_id, dataPackage.actl_id, dataPackage.status], errMsg).then(function(){
+			res.json({status: 200, message: 'removed'});
+		}).catch(function(){
+			res.json({status: 500, error: "Remove data error."})
+		});
 	}
 });
 app.post('/user/delete/activity', function(req, res){
@@ -590,14 +594,14 @@ app.post('/user/delete/activity', function(req, res){
 app.post('/user/update/:item', bearerToken, function(req, res){
 	let {item} = req.params;
 	let data = req.body;
-	if(!req.token){return res.json({error: "Access denied without token."});}
+	if(!req.token){return res.json({status: 403, error: "Access denied without token."});}
 	if(item==="icon"){
 		let query = 'UPDATE user SET icon = ? WHERE user_id = ?';
 		mysql.queryp(query, [data.icon, data.user_id], errMsg).then(function(){
 			res.json({message: true});
 		}).catch(function(err){
 			console.log(err);
-			res.json({error: 'Update data error.'})
+			res.json({status: 500, error: 'Update data error.'})
 		});
 	}
 	

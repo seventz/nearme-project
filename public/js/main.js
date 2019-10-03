@@ -184,8 +184,8 @@ function getActivityData(mode, prop){
     return fetch(query).then(r=>r.json());
 }
 ///////// testing 
-function getActivityWithPrefs(id){
-    return fetch(`/get/activity/?actl_id=${misc.editingActivityId}`).then(r=>r.json());
+function getActivityDetail(id){
+    return fetch(`/get/activity/?actl_id=${id}`).then(r=>r.json());
 }
 /////////
 // -- Activity -- //
@@ -426,7 +426,7 @@ function createActivity(){
         }
     });
 }
-async function editActivity(){
+function editActivity(){
     let input = checkActivityInput();
     if(!input){return;}
     switchElementView('#modal-loading', 'flex');
@@ -450,58 +450,35 @@ async function editActivity(){
 }
 function showActivityContent(event, id){
     if(event){id = event.target.id.split('-')[1]}
-    if(id){
-        fetch(`/get/activity?actl_id=${id}`)
-            .then(function(response){
-                return response.json();
-            }).then(function(result){
-                renderActivityContent(result);
-                switchElementView('#modal-activity-content', 'flex');
-            }).catch(function(error){
-                console.log(error);
-                alertBox("沒有更多詳細資訊可以顯示。");
-            })
-    }else{
-        alertBox("沒有更多詳細資訊可以顯示。");
-    }
+    if(!id){return alertBox("沒有更多詳細資訊可以顯示。");}
+    getActivityDetail(id).then(function(result){
+        renderActivityContent(result);
+        switchElementView('#modal-activity-content', 'flex');
+    });
 }
-function actOnActivity(event, callback){
-    let action = event.target.id.split('-')[0];
-    let actl_id = event.target.id.split('-')[1];
-    if(actl_id){
-        let access_token = localStorage.getItem('access_token');
-        if(!access_token){
-            alertBox("請先登入會員！")
-        }else{
-            let headers = {
-                'Authorization':`Bearer ${access_token}`,
-                'Content-Type':'application/json'
-            };
-            let body = JSON.stringify({
-                actl_id: actl_id
-            });
-            fetch(`/user/status/${action}`, {
-                method: "POST",
-                headers: headers,
-                body: body
-            }).then(function(response){
-                return response.json()
-            }).then(function(result){
-                if(result.error){
-                    alertBox("系統繁忙，請稍後再試。");
-                }else{
-                    if(result.message==='added'){
-                        updatePreference(actl_id, action, 'add');
-                    }else if(result.message==='removed'){
-                        updatePreference(actl_id, action, 'delete');
-                    }
-                    callback(event, result);
-                }
-            }); 
-        }
-    }else{
-        // error handling
-    }
+function updateActivityStatus(id, action){
+    return new Promise(function(resolve, reject){
+        let headers = {
+            'Authorization':`Bearer ${localStorage.getItem('access_token')}`,
+            'Content-Type':'application/json'
+        };
+        fetch(`/user/status/${action}`, {
+            method: "POST",
+            headers: headers,
+            body: JSON.stringify({actl_id: id})
+        }).then(function(response){
+            return response.json()
+        }).then(function(result){
+            switch(result.status){
+                case 200:
+                    resolve(result);
+                    break;
+                case 400: case 403: case 500:
+                    reject(result);
+                    break;
+            }
+        });
+    });
 }
 
 // -- Misc -- //

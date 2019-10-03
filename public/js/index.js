@@ -229,7 +229,6 @@ function initFilters(){
 }
 function nextFilter(element){
     if(!element.value){return;}
-    
     let typeFilter = getElement('#type-filter');
     while(typeFilter.children.length>1){
         typeFilter.removeChild(typeFilter.lastChild);
@@ -260,28 +259,20 @@ function getFilters(){
         paging: 0
     }
 }
-function switchMainView(element, id){
-    let mapDiv = document.querySelector('.main-map');
-    let cardDiv = document.querySelector('.main-list');
-    mapDiv.className = "main-map";
-    cardDiv.className = "main-list";
-    mapDiv.style.display='flex';
-    cardDiv.style.display='flex';
-    if(element){id = element.id}
-    if(id==='view-map'){
-        mapDiv.classList.add('main-map-show');
-        cardDiv.classList.add('main-list-hide');
-    }else if(id==='view-card'){
-        mapDiv.classList.add('main-map-hide');
-        cardDiv.classList.add('main-list-show');
+function switchMainView(element){
+    getElement('.main-map').className = "main-map";
+    getElement('.main-list').className = "main-list";
+    if(element.id==='view-map'){
+        getElement('.main-map').classList.add('show');
+        getElement('.main-list').classList.add('hide');
+    }else if(element.id==='view-card'){
+        getElement('.main-map').classList.add('hide');
+        getElement('.main-list').classList.add('show');
     }
 }
-function showAdvSearch(element){
-    let arrow = document.querySelector('.adv-arrow').classList.toggle('adv-active');
-    let searchbar = document.querySelector('#search-activity-container');
-    element.classList.toggle('adv-active');
-    if(element.classList.contains('adv-active')){searchbar.style.display='flex'}
-    else{searchbar.style.display='none'}
+function showAdvSearch(){
+    getElement('.adv-arrow').classList.toggle('active');
+    getElement('#search-activity-container').classList.toggle('show');
 }
 
 // -- User profile -- //
@@ -607,7 +598,7 @@ function showLikedList(tabName){
                     className: 'icon-24 hover-effect hide',
                     src:'../img/delete-r.png'
                 }, evts:{
-                    click: removeActivityOnProfile
+                    click: removeActivity
                 }}, card);
             }
         }
@@ -628,14 +619,14 @@ function showLikedList(tabName){
 
             switchElementView('#modal-activity-planner', 'flex');
         }
-        async function removeActivityOnProfile(event){
+        async function removeActivity(event){
             let status = await alertBox('確定移除此活動?', 'showCancel');
             if(status===true){
                 // Dealing with DB update ...
                 let action = event.target.id.split('-')[0];
                 let actl_id = event.target.id.split('-')[1];
                 if(action==='liked'||action==='joined'){
-                    actOnActivity(event, function(event, result){
+                    updateActivityStatus(event, function(event, result){
                         if(result.message==='removed'){
                             updatePreference(actl_id, action, 'delete')
                             alertBox('成功移除此活動').then(function(){
@@ -847,7 +838,7 @@ function renderActivityCards(result){
                 className: 'actl-card-favorite icon-30 hover-effect',
                 src: '../img/favorite-filled.png',
             }, evts:{
-                click: likeActivityOnCard
+                click: likeActivity
             }}, footerRight);
         }else{
             createElement("IMG", {atrs:{
@@ -855,7 +846,7 @@ function renderActivityCards(result){
                 className: 'actl-card-favorite icon-30 hover-effect',
                 src: '../img/favorite.png',
             }, evts:{
-                click: likeActivityOnCard
+                click: likeActivity
             }}, footerRight);
         }
     }
@@ -967,72 +958,70 @@ function renderActivityCards(result){
 function renderActivityContent(result){
     let content = result.content;
     let members = result.member;
-    document.querySelector('#ac-img').src=content.main_img || 'img/bg/explorer.jpg';
-    document.querySelector('#ac-title').innerHTML=content.title;
-    document.querySelector('#ac-t-start').innerHTML= content.t_start ? `開始時間: ${timeFormatter(content.t_start, 'ymd', 'hm')}` : "(開始時間未定)";
-    document.querySelector('#ac-t-end').innerHTML= content.t_end ? `結束時間: ${timeFormatter(content.t_end, 'ymd', 'hm')}`: "(結束時間未定)";
-    document.querySelector('#ac-type').innerHTML=content.actl_type ? content.actl_type : "(未分類)" ;
-    document.querySelector('#ac-description').innerHTML=content.description;
-    document.querySelector('#ac-map').innerHTML=modal.map;
-    document.querySelector('#ac-address').innerHTML=content.address || "(無地址資訊可顯示)";
+
+    getElement('#ac-img').src=content.main_img || 'img/bg/explorer.jpg';
+    getElement('#ac-title').innerHTML=content.title;
+    getElement('#ac-t-start').innerHTML=content.t_start ? `開始時間: ${timeFormatter(content.t_start, 'ymd', 'hm')}` : "(開始時間未定)";
+    getElement('#ac-t-end').innerHTML= content.t_end ? `結束時間: ${timeFormatter(content.t_end, 'ymd', 'hm')}`: "(結束時間未定)";
+    getElement('#ac-type').innerHTML=content.actl_type ? content.actl_type : "(未分類)" ;
+    getElement('#ac-description').innerHTML=content.description;
+    getElement('#ac-address').innerHTML=content.address || "(無地址資訊可顯示)";
     
-    document.querySelector('#ac-ref>a').innerHTML=content.ref;
-    document.querySelector('#ac-ref>a').href=content.ref; 
-    document.querySelector('#ac-footer-info').innerHTML = additionalActivityInfo(content);
-    document.querySelector('#ac-going-list').innerHTML='';
-    document.querySelector('#ac-footer-btn').innerHTML='';
+    getElement('#ac-ref>a').innerHTML=content.ref;
+    getElement('#ac-ref>a').href=content.ref; 
+    getElement('#ac-footer-info').innerHTML=additionalActivityInfo(content);
+    removeChildOf('#ac-going-list')
+    removeChildOf('#ac-footer-btn')
     if(content.category === 'official'){
-        document.querySelector('#ac-owner').innerHTML=content.owner;
+        getElement('#ac-owner').innerHTML=content.owner;
     }else if(content.category === 'custom'){
-        document.querySelector('#ac-owner').innerHTML=members.filter(m=>m.status==='held')[0].name;
+        getElement('#ac-owner').innerHTML=members.filter(m=>m.status==='held')[0].name;
     }
     let currentUser = localStorage.getItem('user_id');
     let isJoined = false;
     for(let i=0; i<members.length; i++){
         createElement("DIV", {atrs:{
             className: `tip tip-${i}`
-        }}, document.querySelector('#ac-going-list'));
+        }}, getElement('#ac-going-list'));
         createElement('IMG', {atrs:{
             id: members[i].name,
             className: 'icon-30',
             src: members[i].icon           
-        }}, document.querySelector(`.tip-${i}`));
+        }}, getElement(`.tip-${i}`));
         createElement("DIV", {atrs:{
             className: 'tiptext',
             textContent: members[i].name
-        }}, document.querySelector(`.tip-${i}`));
+        }}, getElement(`.tip-${i}`));
 
         if(members[i].user_id === currentUser){isJoined = true;}
     }
 
-    
     createElement('BUTTON', {atrs:{
         className: "btn btn-cancel ac-cancel",
         textContent: 'Cancel'
     }, evts:{
         click: closeActivityContent
-    }}, document.querySelector('#ac-footer-btn'));
+    }}, getElement('#ac-footer-btn'));
     if(isJoined){
         createElement('BUTTON', {atrs:{
             id: content.actl_id,
             className: "btn btn-faded ac-join",
             textContent: 'Joined'
-        }}, document.querySelector('#ac-footer-btn'));
+        }}, getElement('#ac-footer-btn'));
     }else{
         createElement('BUTTON', {atrs:{
             id: `join-${content.actl_id}`,
             className: "btn btn-submit ac-join",
             textContent: 'Join'
         }, evts:{
-            click: joinActivityOnActivityContent
-        }}, document.querySelector('#ac-footer-btn'));
+            click: joinActivity
+        }}, getElement('#ac-footer-btn'));
     }
-    
     
     // <div>Icons made by <a href="https://www.flaticon.com/authors/roundicons" title="Roundicons">Roundicons</a> from <a href="https://www.flaticon.com/"     title="Flaticon">www.flaticon.com</a></div>
 
     if(content.lat){
-        modal.map = new google.maps.Map(document.getElementById('ac-map'), {
+        modal.map = new google.maps.Map(getElement('#ac-map'), {
             zoom: 14,
             disableDefaultUI: true,
             center: {lat: content.lat, lng: content.lng}
@@ -1042,7 +1031,7 @@ function renderActivityContent(result){
             map: modal.map
         });
     }else{
-        document.getElementById('ac-map').innerHTML = "(無地點資訊可顯示)"
+        getElement('#ac-map').innerHTML = "(無地點資訊可顯示)"
     }
 
     function additionalActivityInfo(content){
@@ -1052,40 +1041,59 @@ function renderActivityContent(result){
         }
     }
 }
-function joinActivityOnActivityContent(event){
-    actOnActivity(event, function(event, result){
+function joinActivity(event){
+    switchElementView('#modal-loading', 'flex');
+    let actl_id = event.target.id.split('-')[1];
+    updateActivityStatus(actl_id, 'join').then(function(result){
+        switchElementView('#modal-loading', 'none');
         if(result.message==='added'){
-            // updatePreference(event.target.id, 'joined', 'add');
+            updatePreference(actl_id, 'joined', 'add');
             alertBox("成功加入此活動！").then(function(){
                 switchElementView('#modal-activity-content', 'none');
             });
         }else if(result.message==='removed'){
-            // updatePreference(event.target.id, 'joined', 'delete');
+            updatePreference(actl_id, 'joined', 'delete');
             alertBox("取消參加此活動").then(function(){
                 switchElementView('#modal-activity-content', 'none');
             });
-        }else if(result.error){
-            alertBox("無法更新狀態，請稍後再試。").then(function(){
-                switchElementView('#modal-activity-content', 'none');
-            });
         }
+    }).catch(function(result){
+        switchElementView('#modal-loading', 'none');
+        showErrorMsg(result).then(function(){
+            switchElementView('#modal-activity-content', 'none');
+        });
     })
 }
-function likeActivityOnCard(event){
-    actOnActivity(event, function(event, result){
-        let actl_id = event.target.id.split('-')[1];
+function likeActivity(event){
+    switchElementView('#modal-loading', 'flex');
+    let actl_id = event.target.id.split('-')[1];
+    updateActivityStatus(actl_id, 'like').then(function(result){
+        switchElementView('#modal-loading', 'none');
         if(result.message==='added'){
+            updatePreference(actl_id, 'liked', 'add');
             event.target.src = event.target.src.replace('favorite.png', 'favorite-filled.png');
-            // updatePreference(actl_id, 'liked', 'add');
             alertBox("已加入關注！");
         }else if(result.message==='removed'){
+            updatePreference(actl_id, 'liked', 'delete');
             event.target.src = event.target.src.replace('favorite-filled.png', 'favorite.png');
-            // updatePreference(actl_id, 'liked', 'delete');
             alertBox("已取消關注！");
-        }else if(result.error){
-            console.log(result.error);
         }
+    }).catch(function(result){
+        switchElementView('#modal-loading', 'none');
+        showErrorMsg(result).then(function(){
+            switchElementView('#modal-activity-content', 'none');
+        });
     });
+}
+function showErrorMsg(data){
+    switch(data.status){
+        case 400:
+            return alertBox("請求格式錯誤。");
+        case 403:
+            return alertBox("請重新登入。");
+        case 500:
+            return alertBox("系統繁忙，請稍後再試。");
+    }
 }
 // -- Search -- //
 function switchSearchMode(){

@@ -38,7 +38,8 @@ const misc = {
     editingActivityId: '',
     searchActivityId: '',
     keywordCount: 1,
-    currentActivityMgmtTabName: ''
+    currentActivityMgmtTabName: '',
+    currentActivityId: ''
 }
 function getElement(selector){
     return document.querySelector(selector);

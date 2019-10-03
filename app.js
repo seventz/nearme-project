@@ -218,7 +218,7 @@ app.get('/get/activity', async function(req, res){
 });
 app.get('/get/list/:p', async function(req, res){
 	let {p} = req.params;
-	let {cat} = req.query; 
+	let {cat} = req.query;
 	let result, types;
 	if(p==='category'){
 		res.json(cst.admin.CAT);

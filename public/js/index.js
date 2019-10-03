@@ -21,7 +21,6 @@ function initPage(){
     initFilters();
     initProfileIcon();
     initMap();
-    initActivityList();
 }
 function initUrl(){
     let urlParams = new URLSearchParams(window.location.search);
@@ -35,6 +34,7 @@ function initVisitedStatus(){
         localStorage.setItem('visited', (new Date).setTime((new Date).getTime()+1000*60*60))
     }else{
         switchElementView('.main', 'contents');
+        renderMainView('all', getFilters());
     }
 }
 function initModalSection(){
@@ -77,7 +77,9 @@ function initListeners(){
     getElement('#close-activity-content').addEventListener('click', closeActivityContent);
     getElement('#close-profile').addEventListener('click', closeProfile);
     getElement('#close-sign-form').addEventListener('click', closeSignForm);
-    getElement('#btn-filters').addEventListener('click', filters);
+    getElement('#btn-filters').addEventListener('click', function(){
+        renderMainView('all', getFilters());
+    });
     getElement('#ac-time-switch').addEventListener('click', switchStartEndTimeDisplay);
     getElement('#checkbox-realtime-render').addEventListener('click', function(event){
         main.map = new google.maps.Map(getElement('#map'), mapOptions);
@@ -98,18 +100,15 @@ function initListeners(){
             window.setTimeout(function(){
                 switchElementView('.bg-landing-hide', 'none')
             }, 1000);
-            panToLocation(main.currentLocation);
-            filters();
+            renderMainView('all', getFilters());
         });
     })
     getElement('#btn-anywhere').addEventListener('click', function(){
         getElement('.bg-landing').className = 'bg-landing-hide';
         window.setTimeout(function(){
             switchElementView('.bg-landing-hide', 'none')
-        }, 1000)
-        getElement('#map').focus();
-        panToLocation(main.currentLocation);
-        filters();
+        }, 1000);
+        renderMainView('all', getFilters());
     })
 
     getElement('#btn-host-activity').addEventListener('click', function(){
@@ -139,7 +138,7 @@ function initListeners(){
         }
     });
     getElement('#btn-explore').addEventListener('click', function(){
-        let options = {
+        let filters = {
             cat: 'official',
             center: Object.values(main.defaultCenter).join(','),
             dist: 5000,
@@ -148,28 +147,12 @@ function initListeners(){
             listing: getElement('#page-listing').value,
             paging: 0
         };
-        getElement('#cat-filter').value = options.cat;
-        getElement('#dist-filter').value = (options.dist)/1000;
-        getElement('#dist').innerHTML = (options.dist)/1000 + '公里';
-        panToLocation(main.defaultCenter);
-
-        getActivityData(options);
+        getElement('#cat-filter').value = filters.cat;
+        getElement('#dist-filter').value = (filters.dist)/1000;
+        getElement('#dist').innerHTML = (filters.dist)/1000 + '公里';
+        renderMainView('all', filters);
     })
-}
-function initFilters(){
-    getElement('#dist-filter').value = 3;
-    let catFilter = getElement('#cat-filter');
-    while(catFilter.children.length>1){
-        catFilter.removeChild(catFilter.lastChild);
-    }
-    getCategory().then(function(data){
-        data.forEach(function(d){
-            createElement('OPTION', {atrs:{
-                value: d,
-                innerHTML: misc.cat[d]
-            }}, catFilter);
-        });
-    });
+    
 }
 function initProfileIcon(){
     requestUserData().then(function(result){
@@ -197,11 +180,6 @@ function switchProfileIcon(status){
         }}, getElement('#nav-profile'));
     }
 }
-function initActivityList(){
-    removeChildOf('#activity-list');
-    removeChildOf('#page-container');
-    filters();
-}
 function initDateTimePicker(){
     let timerSettings = {
         dateStart: (new Date),              
@@ -223,28 +201,64 @@ function initDateTimePicker(){
 }
 
 // -- Main -- //
+function renderMainView(mode, fields){
+    getActivityData(mode, fields).then(function(result){
+        renderActivityCards(result);
+        main.markers = renderMarkers(result);
+        addInfoWindow(main.markers, result);
+    });
+    panToLocation(main.currentLocation);
+}
 function chooseDist(element){
     getElement('#dist').innerHTML=element.value + '公里';
 }
-function filters(){
+function initFilters(){
+    getElement('#dist-filter').value = 3;
+    let catFilter = getElement('#cat-filter');
+    while(catFilter.children.length>1){
+        catFilter.removeChild(catFilter.lastChild);
+    }
+    getCategory().then(function(data){
+        data.forEach(function(d){
+            createElement('OPTION', {atrs:{
+                value: d,
+                innerHTML: misc.cat[d]
+            }}, catFilter);
+        });
+    });
+}
+function nextFilter(element){
+    if(!element.value){return;}
+    
+    let typeFilter = getElement('#type-filter');
+    while(typeFilter.children.length>1){
+        typeFilter.removeChild(typeFilter.lastChild);
+    }
+    getType(element.value).then(function(data){
+        data.forEach(function(d){
+            createElement('OPTION', {atrs:{
+                value: d,
+                innerHTML: d
+            }}, typeFilter);
+        })
+    })
+}
+function getFilters(){
     let center = `${main.currentLocation.lat},${main.currentLocation.lng}`;
     let dist = getElement('#dist-filter').value;
     let cat = getElement('#cat-filter').value;
     let type = getElement('#type-filter').value;
     let listing = getElement('#page-listing').value;
     
-    let data = {
+    return {
         center: center,
         dist: dist*1000,
         cat: cat,
-        owner: '',
-        type: '',
+        owner: cat!='custom' ? type : '',
+        type: cat==='custom' ? type : '',
         listing: listing,
         paging: 0
     }
-    if(cat!='custom'){data.owner = type;}
-    else{data.type = type;}
-    getActivityData(data);
 }
 function switchMainView(element, id){
     let mapDiv = document.querySelector('.main-map');
@@ -623,7 +637,7 @@ function showLikedList(tabName){
                 if(action==='liked'||action==='joined'){
                     actOnActivity(event, function(event, result){
                         if(result.message==='removed'){
-                            updatePrefOnLocal(actl_id, action, 'delete')
+                            updatePreference(actl_id, action, 'delete')
                             alertBox('成功移除此活動').then(function(){
                                 showLikedList(tabName);
                             })
@@ -633,7 +647,7 @@ function showLikedList(tabName){
                     });
                 }else if(action==='held'){
                     await fetch(`/user/delete/activity?actl_id=${actl_id}`);
-                    updatePrefOnLocal(actl_id, action, 'delete');
+                    updatePreference(actl_id, action, 'delete');
                     alertBox('成功移除此活動').then(function(){
                         showLikedList(tabName);
                     })
@@ -947,7 +961,7 @@ function renderActivityCards(result){
                 break;
         }
         request.paging = reqPaging;
-        getActivityData(request);
+        renderMainView('all', request);
     }
 }
 function renderActivityContent(result){
@@ -1041,12 +1055,12 @@ function renderActivityContent(result){
 function joinActivityOnActivityContent(event){
     actOnActivity(event, function(event, result){
         if(result.message==='added'){
-            // updatePrefOnLocal(event.target.id, 'joined', 'add');
+            // updatePreference(event.target.id, 'joined', 'add');
             alertBox("成功加入此活動！").then(function(){
                 switchElementView('#modal-activity-content', 'none');
             });
         }else if(result.message==='removed'){
-            // updatePrefOnLocal(event.target.id, 'joined', 'delete');
+            // updatePreference(event.target.id, 'joined', 'delete');
             alertBox("取消參加此活動").then(function(){
                 switchElementView('#modal-activity-content', 'none');
             });
@@ -1062,11 +1076,11 @@ function likeActivityOnCard(event){
         let actl_id = event.target.id.split('-')[1];
         if(result.message==='added'){
             event.target.src = event.target.src.replace('favorite.png', 'favorite-filled.png');
-            // updatePrefOnLocal(actl_id, 'liked', 'add');
+            // updatePreference(actl_id, 'liked', 'add');
             alertBox("已加入關注！");
         }else if(result.message==='removed'){
             event.target.src = event.target.src.replace('favorite-filled.png', 'favorite.png');
-            // updatePrefOnLocal(actl_id, 'liked', 'delete');
+            // updatePreference(actl_id, 'liked', 'delete');
             alertBox("已取消關注！");
         }else if(result.error){
             console.log(result.error);
@@ -1436,7 +1450,7 @@ function enterListener(event){
         if(event.target.id==="sign-up-password-2"){signup();}
     }
 }
-function updatePrefOnLocal(actl_id, item, action){
+function updatePreference(actl_id, item, action){
     if(item==='like'){item='liked';}
     if(item==='join'){item='joined';}
     let pref = JSON.parse(localStorage.getItem('preference'));

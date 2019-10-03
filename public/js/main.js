@@ -97,7 +97,7 @@ function fbLoginStatusChange(response){
         let fbToken = response.authResponse.accessToken;
         fbSignin(fbToken);
         console.log('Logged in and authenticated');
-    } else {
+    }else{
         console.log('Not authenticated');
     }
 }
@@ -152,7 +152,6 @@ function uploadImage(file, data){
 }
 function updateActivityData(file, data, action){
     let formData = new FormData();
-    console.log(file)
     if(file.length!=0){formData.append('activity', file, 'main_img');}
     for(let name in data){
         formData.append(name, data[name]);
@@ -169,67 +168,27 @@ function updateActivityData(file, data, action){
 }
 // -- Main -- //
 function getCategory(){
-    return fetch('/get/list/category')
-        .then(function(response){
-            return response.json();
-        }).catch(function(error){
-            console.log(error);
-        })
+    return fetch('/get/list/category').then(r=>r.json());
 }
 function getType(cat){
-    return fetch(`/get/list/type?cat=${cat}`)
-        .then(function(response){
-            return response.json();
-        }).catch(function(error){
-            console.log(error);
-        })
+    return fetch(`/get/list/type?cat=${cat}`).then(r=>r.json());
 }
-function getNextFilter(element){
-    if(!element.value){return;}
-    
-    let typeFilter = getElement('#type-filter');
-    while(typeFilter.children.length>1){
-        typeFilter.removeChild(typeFilter.lastChild);
+function getActivityData(mode, prop){
+    let query = '';
+    if(mode==='all'){
+        misc.lastSearch = `/filter/f?cat=${prop.cat}&center=${prop.center}&dist=${prop.dist}&type=${prop.type}&owner=${prop.owner}&listing=${prop.listing}&paging=${prop.paging}`;
+        query = misc.lastSearch;
+    }else if(mode==='id'){
+        query = `/filter/f?actl_id=${id}`;
     }
-    getType(element.value).then(function(data){
-        data.forEach(function(d){
-            createElement('OPTION', {atrs:{
-                value: d,
-                innerHTML: d
-            }}, typeFilter);
-        })
-    })
-}
-function getActivityData(prop){
-    misc.lastSearch = `/filter/f?cat=${prop.cat}&center=${prop.center}&dist=${prop.dist}&type=${prop.type}&owner=${prop.owner}&listing=${prop.listing}&paging=${prop.paging}`;
-    fetch(`/filter/f?cat=${prop.cat}&center=${prop.center}&dist=${prop.dist}&type=${prop.type}&owner=${prop.owner}&listing=${prop.listing}&paging=${prop.paging}`)
-        .then(function(response){
-            return response.json();
-        }).then(function(result){
-            renderActivityCards(result);
-            main.markers = renderMarkers(result);
-            addInfoWindow(main.markers, result);
-        }).catch(function(error){
-            console.log(error)
-        });
-}
-function getActivityById(id){
-    return fetch(`/filter/f?actl_id=${id}`)
-        .then(function(response){
-            return response.json();
-        }).then(function(result){
-            renderActivityCards(result);
-            main.markers = renderMarkers(result);
-            addInfoWindow(main.markers, result);
-        }).catch(function(error){
-            console.log(error);
-        });
+    return fetch(query).then(r=>r.json());
 }
 ///////// testing 
 function getActivityWithPrefs(id){
     return fetch(`/get/activity/?actl_id=${misc.editingActivityId}`).then(r=>r.json());
 }
 /////////
+// -- Activity -- //
 function generateActivityPlanner(){
     let container = getElement('.activity-planner-container');
     container.innerHTML='';
@@ -355,9 +314,6 @@ function generateActivityPlanner(){
     }, evts:{
         click: switchMapMode
     }}, locationDiv);
-    // section = createElement('DIV', {atrs:{
-    //     className: 'form-section',
-    // }}, sub);
     createElement('DIV', {atrs:{
         className: 'modal-map',
     }}, sub);
@@ -413,7 +369,6 @@ function generateActivityPlanner(){
     initDateTimePicker();
     initModalMap();
 }
-// -- Activity -- //
 function checkActivityInput(){
     let title = getElement("#actl-u-title");
     let type = getElement("#actl-u-type");
@@ -458,11 +413,11 @@ function createActivity(){
         switchElementView('#modal-loading', 'none');
         switch(result.status){
             case 200:
-                updatePrefOnLocal(result.data.actl_id, 'held', 'add');
+                updatePreference(result.data.actl_id, 'held', 'add');
                 await alertBox("成功建立活動！");
                 switchElementView('#modal-activity-planner', 'none');
                 let status = await alertBox("顯示剛剛建立的活動？", 'showCancel');
-                if(status===true){getActivityById(result.data.actl_id);}
+                if(status===true){renderMainView('id', result.data.actl_id);}
                 break;
             case 500:
                 await alertBox("建立活動失敗，請稍後再試。");
@@ -536,9 +491,9 @@ function actOnActivity(event, callback){
                     alertBox("系統繁忙，請稍後再試。");
                 }else{
                     if(result.message==='added'){
-                        updatePrefOnLocal(actl_id, action, 'add');
+                        updatePreference(actl_id, action, 'add');
                     }else if(result.message==='removed'){
-                        updatePrefOnLocal(actl_id, action, 'delete');
+                        updatePreference(actl_id, action, 'delete');
                     }
                     callback(event, result);
                 }

@@ -27,7 +27,7 @@ function setMapListener(mainMapObj, options){
         mainMapObj.currentLocation.lng = event.latLng.lng();
         mainMapObj.map.panTo(event.latLng);
 
-        if(options && options.filters==='on'){filters();}
+        if(options && options.filters==='on'){renderMainView('all', getFilters());}
     });
 }
 function getUserLocation(){
@@ -137,9 +137,9 @@ function renderMarkers(result){
 function clearAllMarkers(){
     if(main.pointerMarker){main.pointerMarker.setMap(null);}
     if(main.markers){main.markers.forEach(function(m){m.setMap(null);});}
-    if(main.markerCluster){main.markerCluster.clearMarkers();}
 }
 function addInfoWindow(markers, result){
+    if(!markers){return;}
     for(let i=0; i<markers.length; i++){
         let info = new google.maps.InfoWindow({
             content: decorateInfoWindow(result.data[i])
@@ -178,14 +178,6 @@ function iconPicker(data){
     }else{
         anchor = new google.maps.Point(data.anchor.x, data.anchor.y);
     }
-    
-    
-
-    // let settings = {
-    //     scaledSize: new google.maps.Size(25, 25), // scaled size
-    //     origin: new google.maps.Point(0, 0), // origin
-    //     anchor: new google.maps.Point(0, 0) // anchor
-    // }
 
     switch(data.category){
         case 'official':
@@ -207,35 +199,6 @@ function iconPicker(data){
         origin: origin,
         anchor: anchor
     }
-}
-function markerStyles(){
-    // Marker Styles
-    return {styles:[
-    {
-        height: 53,
-        url: "../img/m1.png",
-        width: 53
-    },
-    {
-        height: 56,
-        url: "../img/m2.png",
-        width: 56
-    },
-    {
-        height: 66,
-        url: "../img/m3.png",
-        width: 66
-    },
-    {
-        height: 78,
-        url: "../img/m4.png",
-        width: 78
-    },
-    {
-        height: 90,
-        url: "../img/m5.png",
-        width: 90
-    }]};
 }
 function panToLocation(latLng){
     if(main.dynMarker){main.dynMarker.setMap(null);}
@@ -273,17 +236,6 @@ function indicateLocation(event){
         }
     }else{
         // error handling
-    }
-}
-function hideLocation(filter){
-    let localMarkers = [];
-    for(let i=0; i<main.markers.length; i++){
-        if(main.markers[i].title === filter){
-            main.markers[i].visible = false;
-            main.markers[i].setMap(null);
-        }else{
-            localMarkers.push(main.markers[i])
-        }
     }
 }
 const mapStyle = [

@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
+    <title>NearMe</title>
+    <link rel="shortcut icon" type="image/x-icon" href="img/favicon.ico" />
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <link type="text/css" rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="css/tail.datetime.css">
+	<script src="js/tail.datetime.js"></script>
+    <script src="js/util.js"></script>
+    <script async defer src="https://maps.googleapis.com/maps/api/js?&libraries=places&key=AIzaSyBgZz5j07oQ7gqtfpl7Za5DqNVNK0q41Ro"
+      onload="this.onload=function(){};importJS()"
+      onreadystatechange="if(this.readyState === 'complete') this.onload()">
+    </script>
+</head>
+
+<body>
+    <div class="bg-landing">
+        <div class="bg-mask">
+            <div id="landing-container">
+                <div class="landing-container-part">
+                    <div class="landing-block">
+                        <p>探索城市</p>
+                    </div>
+                    <div class="landing-block">
+                        <p>發現身邊有趣的事物</p>
+                    </div>
+                </div>
+                <div class="landing-container-part flex-c-st">
+                    <div id="btn-landing" class="landing-button">立刻開啟你的探索旅程!</div>
+                    <div class="btn-group">
+                        <button id="btn-anywhere" class="btn btn-submit">從地圖上任意一點開始</button>
+                        <button id="btn-mylocation" class="btn btn-submit">從我的地點開始</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="main">
+    <!-- Navbar and filter panel -->
+        <!-- Navbar -->
+        <nav class="nav-container flex-r-c">
+            <div class="nav-inner">
+                <div class="nav flex-r-b">
+                    <div class="nav-sub">
+                        <a href="/"><img src="img/nearme.png"></a>
+                        <!-- <div class="nav-brand">NearMe</div> -->
+                    </div>
+                    <div class="nav-sub" id="nav-feature">                        
+                        <div id="btn-explore" class="nav-item btn-outline">探索</div>
+                        <div id="btn-host-activity" class="nav-item btn-outline">建立活動</div>
+                        <div id="nav-profile" class="nav-item btn-outline"></div>
+                        <!-- Profile icon -->
+                    </div>
+                </div>
+            </div>
+        </nav>
+    
+        <!-- Filter panel -->
+        <div class="bg-filter">
+            <div class="bg-mask-1 flex-c-c">
+                <div id="filter-container" class="flex-c-c">
+                    
+                    <!-- Main filters (main) -->
+                    <div id="filters" class="flex-r-c">
+                        <div class="filter">
+                            <div class="dist-filter flex-r-b">
+                                <p>選擇距離:</p>
+                                <p id="dist">3公里</p>
+                            </div>
+                            <input type="range" id="dist-filter" min="0" max="20" step="0.1" value="3" oninput="chooseDist(this)" />
+                        </div>
+                        <div class="filter">
+                            <p>選擇類別:</p>
+                            <select id="cat-filter" onchange="getNextFilter(this)">
+                                <option selected value="">所有類別</option>
+                            </select>
+                        </div>
+                        <div class="filter">
+                            <p>選擇子類別:</p>
+                            <select id="type-filter">
+                                <option selected value="">所有子類別</option>
+                            </select>
+                        </div>
+                        <button id="btn-filters" class="btn btn-submit">確定</button>
+                        
+                        <div class="adv-search flex-r-c" onclick="showAdvSearch(this)">
+                            <div>進階搜尋</div>
+                            <img class="adv-arrow" src="img/adv.png">
+                        </div>
+                    </div>
+                </div>
+                <script>
+                    
+                </script>
+                <div id="search-activity-container" class="flex-r-c">
+                    <div class="search-mode-group flex-r-c">
+                        <div class="adv-search-mode">即時</div>
+                        <label class="switch">
+                            <input id="switch-search-mode" type="checkbox" onchange="switchSearchMode()">
+                            <span class="slider round"></span>
+                        </label>
+                    </div>
+                    <div class="autocomplete">
+                        <input id="search-main" class="search-box input-effect" oninput="realtimeSearch()" type="text" placeholder="關鍵字...">
+                        <div id="search-main-items" class="autocomplete-items">
+                            <!-- Autocomplete items -->
+                        </div>
+                    </div>
+                    
+                    <button id="search-activity" class="btn btn-submit" onclick="searchActivityById()">搜尋</button>
+                    <button id="clear-search" class="btn btn-cancel" style="margin-left: 0px;" onclick="clearSearch()">清除</button>
+                </div>
+            </div>
+        </div>
+            
+        <div class="flex-c-c">
+            <div class="control-panel flex-r-c">
+                <div class="flex-r-c">
+                    <div class="control-panel-item">
+                        <div>顯示模式:</div>
+                        <button id="view-map" class="btn btn-altered" onclick="switchMainView(this)">地圖</button>
+                        <button id="view-general" class="btn btn-altered" onclick="switchMainView(this)">一般</button>
+                        <button id="view-card" class="btn btn-altered" onclick="switchMainView(this)">活動</button>
+                    </div>
+                    <div class="control-panel-item">
+                        <div>每頁顯示筆數:</div>
+                        <select name="listing" id="page-listing" onchange="filters()">
+                            <option value="6">6</option>
+                            <option value="12" selected>12</option>
+                            <option value="24">24</option>
+                            <option value="48">48</option>
+                        </select>
+                    </div>
+                    <div class="control-panel-item" id="activity-counts"></div>
+                </div>
+            </div>
+
+            <div class="main-container flex-r-c">
+                <div class="main-map">
+                    <div>
+                        <input type="checkbox" id="checkbox-user-location"><label for="checkbox-user-location">使用目前地點</label>
+                        <input type="checkbox" id="checkbox-realtime-render"><label for="checkbox-realtime-render">即時搜尋功能</label>
+                    </div>
+                    <div id="map" style="background-color:rgb(218, 188, 188)"></div>
+                </div>
+                <div class="main-list">
+                    
+                    <div id="activity-list">
+                        <!-- Activity card list here -->
+                    </div>
+                    <div id="page-container">
+                        <!-- Page panel -->
+                    </div>
+                </div>
+            </div>
+        </div>
+        <footer class="flex-r-c">
+            <div class="ft">關於 Near Me</div>
+            <div class="ft">|   </div>
+            <div class="ft">關注我們</div>
+        </footer>
+    </div>
+        
+    <!-- Bootstrap -->
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.7/umd/popper.min.js" integrity="sha384-UO2eT0CpHqdSJQ6hJty5KVphtPhzWj9WO1clHTMGa3JDZwrnQq4sF86dIHNDz0W1" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
+    
+    
+    <!-- Modal section -->
+    <!-- ---- -->
+    <!-- 0. alert -->
+    <div class="bg-modal" id="modal-alert">
+        <div class="alert-box flex-r-c">
+            <div class="alert-container successful">
+                <div id="close-alert" class="close">+</div>
+                <div id="alert-text">
+                    <!-- Alert text here -->
+                </div>
+                <div class="flex-r">
+                    <button id="alert-cancel" class="btn btn-cancel">Cancel</button>
+                    <button id="alert-confirm" class="btn btn-submit">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- 1. Activity planner -->
+    <div class="bg-modal" id="modal-activity-planner">
+        <div class="flex-r-c">
+            <div class="activity-planner-container">
+                <!-- Activity planner content -->
+            </div>
+        </div>
+    </div>
+    <!-- 2. Sign in form -->
+    <div class="bg-modal" id="modal-sign-form">
+        <div class="flex-r-c">
+            <div class="sign-form-container">
+                <div id="close-sign-form" class="close">+</div>
+                <div class="bg"></div>
+                <div class="sign-header">
+                    <div class="sign-tags">
+                        <div id="sign-in-tag" class="sign-tag active">Sign In</div>
+                        <div id="sign-up-tag" class="sign-tag">Sign Up</div>
+                    </div>
+                </div>
+                <div class="sign-content">
+                    <!-- Rendering sign in content -->
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- 3. Profile page -->
+    <div class="bg-modal" id="modal-profile">
+        <div class="flex-r-c">
+            <div class="profile-container flex-r-c">
+                <div id="close-profile" class="close">+</div>
+                <div class="profile-main flex-c-st">
+                    <div class="user-image-container">
+                        <div class="user-upload">
+                            <img src="img/picture.png" id="icon-choose-profile" class="icon-24">
+                            <input type="file" accept="image/png, image/jpg, image/jpeg, image/gif" id="upload-profile" class="icon-24">
+                        </div>
+                        <img id="profile-picture" src="img/user.png">
+                    </div>
+                    <hr>
+                    <div class="profile-tags flex-c-c">
+                        <div class="profile-tag flex-r-c" onclick="showUserInfo()">
+                            <img src="img/profile-a.png" class="icon-30" alt="">
+                            <div>個人資訊</div>
+                        </div>
+                        
+                        <div class="profile-tag flex-r-c" onclick="showLikedList()">
+                            <img src="img/love-a.png" class="icon-30" alt="">
+                            <div>管理活動</div>
+                        </div>
+
+                        <div class="profile-tag flex-r-c" onclick="logout()">
+                            <div>登出</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="profile-content flex-c-st">
+                    <!-- Profile content -->
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- 4. Activity content -->
+    <div class="bg-modal" id="modal-activity-content">
+        <div class="flex-r-c">
+            <div class="activity-content-container">
+                <div id="close-activity-content" class="close">+</div>
+                <div class="ac-head">
+                    <img id="ac-img" src="">
+                    <div class="ac-title-container">
+                        <div id="ac-title">
+                            <!-- title -->
+                        </div>
+                        <div class="flex-r ac-time">
+                            <div id="ac-t-start">
+                                <!-- start time -->
+                            </div>
+                            <div id="ac-t-end" class="hide">
+                                <!-- end-time -->
+                            </div>
+                            <img id="ac-time-switch" class="icon-24" src="../img/refresh.png">
+                        </div>
+                    </div>
+                </div>
+                <div class="ac-main">
+                    <div class="ac-main-sub left">
+                        <div class="ac-main-sub-title flex-r-b">
+                            <div class="text-bold">詳細敘述:</div>
+                            <div id="ac-type" class="ac-type-tag">
+                                <!-- activity type -->
+                            </div>
+                        </div>
+                        <p id="ac-description" class="ac-main-sub-content">
+                            <!-- description -->
+                        </p>
+                    </div>
+                    <div class="ac-main-sub right">
+                        <div class="ac-main-sub-title flex-r-st">
+                            <div class="text-bold">更多資訊:</div>
+                        </div>
+                        <div class="ac-main-sub-content right">
+                            <div id="ac-map">
+                                <!-- Modal map -->
+                            </div>
+                            <div class="ac-panel-list">
+                                <div class="ac-big-tag break-long-words">Address </div>
+                                <div id="ac-address">
+                                    <!-- Activity address -->
+                                </div>
+                                <div class="ac-big-tag">Created by</div>
+                                <div id="ac-owner">
+                                    <!-- Activity owner -->
+                                </div>
+                                <div class="ac-big-tag break-long-words">Link</div>
+                                <div id="ac-ref">
+                                    <a href="" target="_blank">
+                                        <!-- Activity ref -->
+                                    </a>
+                                </div>
+                                <div class="ac-big-tag">Who's going</div>
+                                <div id="ac-going-list">
+                                    <!-- Who's going -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="ac-footer">
+                    <div id="ac-footer-info" class="text-bold">
+                        <!-- Info text -->
+                    </div>
+                    <div id="ac-footer-btn"></div>
+                    <!-- Join and Cancel buttons -->
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- 5. Loading animation -->
+    <div class="bg-modal" id="modal-loading">
+        <div class="flex-r-c">
+            <div class="loading">
+                <img src="../img/loading.gif" alt="">
+            </div>
+        </div>
+    </div>    
+        
+</body>
+</html>

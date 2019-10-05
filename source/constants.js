@@ -11,6 +11,7 @@ const admin = {
     TOKEN_EXPIRED_IN_SEC: 3000,
     PAGE_COUNT: 8,
     SERVER: 'https://seventz.cc',
+    BUCKET_NAME: 'seventz002',
     S3_BUCKET: 'https://seventz002.s3.amazonaws.com/',
     CAT: ['custom', 'official']
 }

@@ -18,9 +18,9 @@ function signin(){
         if(result.error){
             document.querySelector('.alert-text').style.display = "flex";
             document.querySelector('.alert-text').innerHTML = "Email or password does not match!";
-            clearS(['#sign-in-password']);
+            clearValue(['#sign-in-password']);
         }else{
-            clearS(['#sign-in-password']);
+            clearValue(['#sign-in-password']);
             switchElementView('#modal-sign-form', 'none');
             alertBox("登入成功！").then(function(){
                 setUserData(result);
@@ -43,9 +43,9 @@ function signup(){
     if(errMsg){
         document.querySelector('.alert-text').style.display = "flex";
         document.querySelector('.alert-text').innerHTML = errMsg;
-        clearS(['#sign-up-password', '#sign-up-password-2']);
+        clearValue(['#sign-up-password', '#sign-up-password-2']);
     }else{
-        clearS(['#sign-up-password', '#sign-up-password-2']);
+        clearValue(['#sign-up-password', '#sign-up-password-2']);
         document.querySelector('.alert-text').style.display = "hidden";
         let body = JSON.stringify({
             provider: 'native',
@@ -135,36 +135,31 @@ function fbSignin(access_token){
     });
 }
 // -- Upload -- //
-function uploadImage(file, data){
-    let formData = new FormData();
-    formData.append('profile', file, 'profile_pic');
-    for(let name in data){
-        formData.append(name, data[name]);
-    }
-    return fetch('/upload/profile', {
-        method: 'POST',
-        body: formData
-    }).then(function(result){
-        return result.json();
-    }).catch(function(error){
-        console.log(error);
-    });
-}
-function updateActivityData(file, data, action){
-    let formData = new FormData();
-    if(file.length!=0){formData.append('activity', file, 'main_img');}
-    for(let name in data){
-        formData.append(name, data[name]);
-    }
-    let router = action==='add' ? 'addActl' : 'editActl';
-    return fetch(`/upload/${router}`, {
-        method: 'POST',
-        body: formData
-    }).then(function(response){
-        return response.json();
-    }).catch(function(error){
-        console.log(error);
-    });
+function uploadProfileImage(file, data){
+    return new Promise(function(resolve, reject){
+        let formData = new FormData();
+        formData.append('profile', file, 'profile_pic');
+        for(let name in data){
+            formData.append(name, data[name]);
+        }
+        fetch('/upload/profile', {
+            method: 'POST',
+            body: formData
+        }).then(function(result){
+            return result.json();
+        }).then(function(result){
+            switch(result.status){
+                case 200:
+                    resolve(result);
+                    break;
+                case 400: case 401:
+                    reject(result);
+                    break;
+            }
+        }).catch(function(){
+            reject({status: 503, error: "Server busy."})
+        });
+    })
 }
 // -- Main -- //
 function getCategory(){
@@ -174,24 +169,31 @@ function getType(cat){
     return fetch(`/get/list/type?cat=${cat}`).then(r=>r.json());
 }
 function getActivityData(mode, prop){
-    let query = '';
+    let queryArr = [], query = '';
     if(mode==='all'){
-        misc.lastSearch = `/filter/f?cat=${prop.cat}&center=${prop.center}&dist=${prop.dist}&type=${prop.type}&owner=${prop.owner}&listing=${prop.listing}&paging=${prop.paging}`;
-        query = misc.lastSearch;
+        for(let name in prop){
+            queryArr.push(`${name}=${prop[name]}`);
+        }
+        query = `/filter/${mode}?${queryArr.join('&')}`
+        misc.lastSearch = query; // => Store the last search query
     }else if(mode==='id'){
-        query = `/filter/f?actl_id=${id}`;
+        query = `/filter/${mode}?actl_id=${prop}`;
     }
     return fetch(query).then(r=>r.json());
+}
+function getUserActivities(ids){
+    return fetch(`/user/activity?actl_id=${ids}`).then(r=>r.json());
 }
 ///////// testing 
 function getActivityDetail(id){
     return fetch(`/get/activity/?actl_id=${id}`).then(r=>r.json());
 }
 /////////
+
 // -- Activity -- //
 function generateActivityPlanner(){
     let container = getElement('.activity-planner-container');
-    container.innerHTML='';
+    removeChildOf('.activity-planner-container');
     createElement('DIV', {atrs:{
         id: 'close-modal-host-activity',
         className: 'close',
@@ -369,6 +371,25 @@ function generateActivityPlanner(){
     initDateTimePicker();
     initModalMap();
 }
+function generateActivityEditor(actl_id){
+    generateActivityPlanner();
+    getElement('.activity-title>p').textContent = "編輯活動";
+    getActivityData('id', actl_id).then(function(result){
+        if(result.data.length===0){return alertBox("沒有內容可以顯示。");}
+        let data = result.data[0];
+        getElement("#actl-u-title").value = data.title;
+        getElement("#actl-u-type").value = data.actl_type;
+        getElement("#actl-u-place").value = `${data.lat.toFixed(4)}, ${data.lng.toFixed(4)}`;
+        getElement("#actl-u-t_start").value = timeFormatter(data.t_start, 'ymd', 'hm');
+        getElement("#actl-u-t_end").value = timeFormatter(data.t_end, 'ymd', 'hm');
+        getElement("#actl-u-description").value = data.description;
+        getElement("#create-activity").removeEventListener('click', createActivity);
+        getElement("#create-activity").addEventListener('click', function(){
+            editActivity(actl_id);
+        });
+        switchElementView('#modal-activity-planner', 'flex');
+    });
+}
 function checkActivityInput(){
     let title = getElement("#actl-u-title");
     let type = getElement("#actl-u-type");
@@ -405,49 +426,6 @@ function checkActivityInput(){
         }}
     );
 }
-function createActivity(){
-    let input = checkActivityInput();
-    if(!input){return;}
-    switchElementView('#modal-loading', 'flex');
-    updateActivityData(input.file, input.data, 'add').then(async function(result){
-        switchElementView('#modal-loading', 'none');
-        switch(result.status){
-            case 200:
-                updatePreference(result.data.actl_id, 'held', 'add');
-                await alertBox("成功建立活動！");
-                switchElementView('#modal-activity-planner', 'none');
-                let status = await alertBox("顯示剛剛建立的活動？", 'showCancel');
-                if(status===true){renderMainView('id', result.data.actl_id);}
-                break;
-            case 500:
-                await alertBox("建立活動失敗，請稍後再試。");
-                switchElementView('#modal-activity-planner', 'none');
-                break;
-        }
-    });
-}
-function editActivity(){
-    let input = checkActivityInput();
-    if(!input){return;}
-    switchElementView('#modal-loading', 'flex');
-    let actl_id = misc.editingActivityId;
-    input.data.actl_id = actl_id;
-    updateActivityData(input.file, input.data, 'edit').then(async function(result){
-        switchElementView('#modal-loading', 'none');
-        switch(result.status){
-            case 200:
-                await alertBox("成功編輯活動！");
-                getElement(`#held-${actl_id}-title`).innerHTML = result.data.title;
-                getElement(`#held-${actl_id}-time`).innerHTML = timeFormatter(result.data.t_start, 'md', 'hm');
-                switchElementView('#modal-activity-planner', 'none');
-                break;
-            case 500:
-                await alertBox("編輯活動失敗，請稍後再試。");
-                switchElementView('#modal-activity-planner', 'none');
-                break;
-        }
-    });
-}
 function showActivityContent(event, id){
     if(event){id = event.target.id.split('-')[1]}
     if(!id){return alertBox("沒有更多詳細資訊可以顯示。");}
@@ -456,7 +434,68 @@ function showActivityContent(event, id){
         switchElementView('#modal-activity-content', 'flex');
     });
 }
-function updateActivityStatus(id, action){
+function createActivity(){
+    let input = checkActivityInput();
+    if(!input){return;}
+    switchElementView('#modal-loading', 'flex');
+    updateActivityData(input.file, input.data, 'add').then(async function(result){
+        triggerStatusChange();
+        switchElementView('#modal-loading', 'none');
+        updatePreference(result.data.actl_id, 'held', 'add');
+        await alertBox("成功建立活動！");
+        switchElementView('#modal-activity-planner', 'none');
+        let status = await alertBox("顯示剛剛建立的活動？", 'showCancel');
+        if(status===true){renderMainView('id', result.data.actl_id);}
+    }).catch(async function(result){
+        switchElementView('#modal-loading', 'none');
+        await alertBox("建立活動失敗，請稍後再試。");
+        switchElementView('#modal-activity-planner', 'none');
+    });
+}
+function editActivity(actl_id){
+    let input = checkActivityInput();
+    if(!input){return;}
+    input.data.actl_id = actl_id;
+    switchElementView('#modal-loading', 'flex');
+    updateActivityData(input.file, input.data, 'edit').then(async function(result){
+        triggerStatusChange();
+        switchElementView('#modal-loading', 'none');
+        await alertBox("成功編輯活動！");
+        getElement(`#held-${actl_id}-title`).innerHTML = result.data.title;
+        getElement(`#held-${actl_id}-time`).innerHTML = timeFormatter(result.data.t_start, 'md', 'hm');
+        switchElementView('#modal-activity-planner', 'none');
+    }).catch(async function(result){
+        switchElementView('#modal-loading', 'none');
+        await alertBox("編輯活動失敗，請稍後再試。");
+        switchElementView('#modal-activity-planner', 'none');
+    });
+}
+function updateActivityData(file, data, action){
+    return new Promise(function(resolve, reject){
+        let formData = new FormData();
+        if(file.length!=0){formData.append('activity', file, 'main_img');}
+        for(let name in data){
+            formData.append(name, data[name]);
+        }
+        let router = action==='add' ? 'addActl' : 'editActl';
+        fetch(`/upload/${router}`, {
+            method: 'POST',
+            body: formData
+        }).then(function(response){
+            return response.json();
+        }).then(function(result){
+            switch(result.status){
+                case 200:
+                    resolve(result);
+                    break;
+                case 500:
+                    reject(result);
+                    break;
+            }
+        });
+    });
+}
+function updateActivityStatus(actl_id, action){
     return new Promise(function(resolve, reject){
         let headers = {
             'Authorization':`Bearer ${localStorage.getItem('access_token')}`,
@@ -465,7 +504,7 @@ function updateActivityStatus(id, action){
         fetch(`/user/status/${action}`, {
             method: "POST",
             headers: headers,
-            body: JSON.stringify({actl_id: id})
+            body: JSON.stringify({actl_id: actl_id})
         }).then(function(response){
             return response.json()
         }).then(function(result){
@@ -473,36 +512,62 @@ function updateActivityStatus(id, action){
                 case 200:
                     resolve(result);
                     break;
-                case 400: case 403: case 500:
+                case 400: case 401: case 403: case 500:
                     reject(result);
                     break;
             }
         });
     });
 }
-
+function updateUserData(data){
+    return new Promise(function(resolve, reject){
+        fetch(`/user/update/profile`, {
+            method: "POST",
+            headers: {
+                'Authorization':`Bearer ${localStorage.getItem('access_token')}`,
+                'Content-Type':'application/json'
+            },
+            body: JSON.stringify(data)
+        }).then(function(response){
+            return response.json();
+        }).then(function(result){
+            switch(result.status){
+                case 200:
+                    resolve(result);
+                    break;
+                case 500:
+                    reject(result);
+                    break;
+            }
+        });
+    })
+}
 // -- Misc -- //
+function triggerStatusChange(){
+    renderMainView('all', getFilters());
+}
 function requestUserData(){
     let access_token = localStorage.getItem('access_token');
     let provider = localStorage.getItem('provider');
     return new Promise(function(resolve, reject){
-        if(access_token){
-            fetch(`/user/profile?provider=${provider}`, {
-                headers: {
-                    'Authorization':`Bearer ${access_token}`,
-                    'Content-Type':'application/json'
-                }
-            }).then(function(response){
-                return response.json();
-            }).then(function(result){
-                if(result.error) reject(result.error);
-                else resolve(result);
-            }).catch(function(err){
-                console.log(err);
-                reject({error: "Fetching data error."})
-            });
-        }else{
-            reject({error: "No access_token found."});
-        }
+        fetch(`/user/profile?provider=${provider}`, {
+            headers: {
+                'Authorization':`Bearer ${access_token}`,
+                'Content-Type':'application/json'
+            }
+        }).then(function(response){
+            return response.json();
+        }).then(function(result){
+            switch(result.status){
+                case 200:
+                    resolve(result);
+                    break;
+                case 400: case 401: case 403:
+                    reject(result);
+                    break;
+            }
+        }).catch(function(err){
+            reject({status: 500, error: "Fetching data error."})
+        });
     })
 }

@@ -17,7 +17,6 @@ else{document.addEventListener("DOMContentLoaded", init);}
 // -- Main -- //
 function initPage(){
     initVisitedStatus();
-    initModalSection();
     initFilters();
     initProfileIcon();
     initMap();
@@ -37,19 +36,8 @@ function initVisitedStatus(){
         renderMainView('all', getFilters());
     }
 }
-function initModalSection(){
-    switchElementView('#modal-alert', 'none');
-    switchElementView('#modal-activity-planner', 'none');
-    switchElementView('#modal-sign-form', 'none');
-    switchElementView('#modal-profile', 'none');
-    switchElementView('#modal-activity-content', 'none');
-    switchElementView('#modal-loading', 'none');
-}
 
 // -- Utils -- //
-function switchElementView(selector, status){
-    if(selector){document.querySelector(selector).style.display = status;}
-}
 function closeActivityPlanner(){
     switchElementView('#modal-activity-planner', 'none');
 }
@@ -80,7 +68,10 @@ function initListeners(){
     getElement('#btn-filters').addEventListener('click', function(){
         renderMainView('all', getFilters());
     });
-    getElement('#ac-time-switch').addEventListener('click', switchStartEndTimeDisplay);
+    getElement('#ac-time-switch').addEventListener('click', function(){
+        getElement('#ac-t-start').classList.toggle('hide');
+        getElement('#ac-t-end').classList.toggle('hide');        
+    });
     getElement('#checkbox-realtime-render').addEventListener('click', function(event){
         main.map = new google.maps.Map(getElement('#map'), mapOptions);
         main.listener = setMapListener(main, (event.target.checked ? {filters:'on'} : null));
@@ -144,41 +135,68 @@ function initListeners(){
             dist: 5000,
             owner: '',
             type: '',
-            listing: getElement('#page-listing').value,
+            listing: getElement('#listing-filter').value,
             paging: 0
         };
         getElement('#cat-filter').value = filters.cat;
         getElement('#dist-filter').value = (filters.dist)/1000;
         getElement('#dist').innerHTML = (filters.dist)/1000 + '公里';
         renderMainView('all', filters);
+    });
+    getElement('#dist-filter').addEventListener('input', function(){
+        getElement('#dist').innerHTML = this.value + '公里';
     })
-    
+    getElement('#cat-filter').addEventListener('change',function(){
+        if(!this.value){return;}
+        let typeFilter = getElement('#type-filter');
+        while(typeFilter.children.length>1){
+            typeFilter.removeChild(typeFilter.lastChild);
+        }
+        getType(this.value).then(function(data){
+            data.forEach(function(d){
+                createElement('OPTION', {atrs:{
+                    value: d,
+                    innerHTML: d
+                }}, typeFilter);
+            })
+        })
+    })
+    getElement('#listing-filter').addEventListener('change', function(){
+        renderMainView('all', getFilters());
+    })
+    getElement('#advanced-search').addEventListener('click', function(){
+        getElement('.adv-arrow').classList.toggle('active');
+        getElement('#search-activity-container').classList.toggle('show');
+    });
+    getElement('#user-info').addEventListener('click', showUserInfo);
+    getElement('#logout').addEventListener('click', logout);
+    getElement('#user-activity-manager').addEventListener('click', function(){
+        showWatchList(misc.currentTab);
+    });
 }
 function initProfileIcon(){
     requestUserData().then(function(result){
-        switchProfileIcon('show');
         setUserData(result);
+        switchProfileIcon('show');
     }).catch(function(){
         removeUserData();
         switchProfileIcon('hide');
     });
 }
-function switchProfileIcon(status){
-    removeChildOf('#nav-profile');
-    if(status==='hide'){
-        return createElement('DIV', {atrs:{
-            textContent: '登入'
-        }, evts:{
-            click: showSignInForm
-        }}, getElement('#nav-profile'));
+function initFilters(){
+    getElement('#dist-filter').value = 3;
+    let catFilter = getElement('#cat-filter');
+    while(catFilter.children.length>1){
+        catFilter.removeChild(catFilter.lastChild);
     }
-    if(status==='show'){
-        return createElement('IMG', {atrs:{
-            src: 'img/profile.png',
-        }, evts:{
-            click: showProfilePage
-        }}, getElement('#nav-profile'));
-    }
+    getCategory().then(function(data){
+        data.forEach(function(d){
+            createElement('OPTION', {atrs:{
+                value: d,
+                innerHTML: misc.cat[d]
+            }}, catFilter);
+        });
+    });
 }
 function initDateTimePicker(){
     let timerSettings = {
@@ -199,6 +217,22 @@ function initDateTimePicker(){
         misc.endTimePicker.reload();
     });
 }
+function switchProfileIcon(status){
+    removeChildOf('#nav-profile');
+    if(status==='show'){
+        createElement('IMG', {atrs:{
+            src: 'img/profile.png',
+        }, evts:{
+            click: showProfilePage
+        }}, getElement('#nav-profile'));
+    }else if(status==='hide'){
+        createElement('DIV', {atrs:{
+            textContent: '登入'
+        }, evts:{
+            click: showSignInForm
+        }}, getElement('#nav-profile'));
+    }
+}
 
 // -- Main -- //
 function renderMainView(mode, fields){
@@ -209,45 +243,12 @@ function renderMainView(mode, fields){
     });
     panToLocation(main.currentLocation);
 }
-function chooseDist(element){
-    getElement('#dist').innerHTML=element.value + '公里';
-}
-function initFilters(){
-    getElement('#dist-filter').value = 3;
-    let catFilter = getElement('#cat-filter');
-    while(catFilter.children.length>1){
-        catFilter.removeChild(catFilter.lastChild);
-    }
-    getCategory().then(function(data){
-        data.forEach(function(d){
-            createElement('OPTION', {atrs:{
-                value: d,
-                innerHTML: misc.cat[d]
-            }}, catFilter);
-        });
-    });
-}
-function nextFilter(element){
-    if(!element.value){return;}
-    let typeFilter = getElement('#type-filter');
-    while(typeFilter.children.length>1){
-        typeFilter.removeChild(typeFilter.lastChild);
-    }
-    getType(element.value).then(function(data){
-        data.forEach(function(d){
-            createElement('OPTION', {atrs:{
-                value: d,
-                innerHTML: d
-            }}, typeFilter);
-        })
-    })
-}
 function getFilters(){
     let center = `${main.currentLocation.lat},${main.currentLocation.lng}`;
     let dist = getElement('#dist-filter').value;
     let cat = getElement('#cat-filter').value;
     let type = getElement('#type-filter').value;
-    let listing = getElement('#page-listing').value;
+    let listing = getElement('#listing-filter').value;
     
     return {
         center: center,
@@ -270,47 +271,45 @@ function switchMainView(element){
         getElement('.main-list').classList.add('show');
     }
 }
-function showAdvSearch(){
-    getElement('.adv-arrow').classList.toggle('active');
-    getElement('#search-activity-container').classList.toggle('show');
-}
 
 // -- User profile -- //
 function showProfilePage(){
     requestUserData().then(function(result){
-        showProfileContent(result);
+        // store user data in memory
+        misc.userData = {
+            data: result.data,
+            preference: result.preference
+        }
+        getElement('#profile-picture').src = result.data.profile_pic ? result.data.profile_pic : 'img/user.png';
+        showUserInfo(result);
+        switchElementView('#modal-profile', 'flex');
     }).catch(function(error){
         alertBox("請先登入會員").then(function(){
             initPage();
         });
     });
 }
-async function showProfileContent(result){
-    getElement('#profile-picture').src = result.data.profile_pic ? result.data.profile_pic : 'img/user.png';
-    showUserInfo(result);
-    switchElementView('#modal-profile', 'flex');
-}
 async function showUserInfo(result){
     // -- Reset content -- //
-    let profileContent = document.querySelector('.profile-content');
-    profileContent.innerHTML="";
+    removeChildOf('.profile-content');
 
     createElement('DIV', {atrs:{
         className: 'profile-title'
-    }}, profileContent);
+    }}, getElement('.profile-content'));
     createElement('P', {atrs:{
         textContent: '個人資訊'
-    }}, document.querySelector('.profile-title'));
+    }}, getElement('.profile-title'));
     
     // -- get data within this function scope -- //
     let data, preference;
-    if(!result){
-        result = await requestUserData();
-        if(!result.error){
-            data = result.data;
-            preference = result.preference;
-        }
+    if(Object.keys(misc.userData).length!=0){
+        data = misc.userData.data;
+        preference = misc.userData.preference
+    }else if(result){
+        data = result.data;
+        preference = result.preference;
     }else{
+        result = await requestUserData();
         data = result.data;
         preference = result.preference;
     }
@@ -331,105 +330,143 @@ async function showUserInfo(result){
     for(let i=0; i<userObj.length; i++){
         createElement('DIV', {atrs:{
             className: `profile-userinfo p-u-${i}`
-        }}, profileContent);
+        }}, getElement('.profile-content'));
         createElement('DIV', {atrs:{
             className: 'info-title',
             innerHTML: userObj[i].title
-        }}, document.querySelector(`.p-u-${i}`));
+        }}, getElement(`.p-u-${i}`));
         createElement('DIV', {atrs:{
             className: 'info-content',
             innerHTML: userObj[i].content
-        }}, document.querySelector(`.p-u-${i}`));
+        }}, getElement(`.p-u-${i}`));
     }
     createElement('DIV', {atrs:{
         className: 'profile-last'
-    }}, profileContent);
+    }}, getElement('.profile-content'));
     createElement('BUTTON', {atrs:{
+        id: 'edit-profile',
         className: 'btn btn-altered',
         textContent: 'Edit'
     }, evts:{
         click: showEdit
-    }}, document.querySelector('.profile-last'));
+    }}, getElement('.profile-last'));
     
 }
-function showEdit(event){
-    let iconTitle = document.querySelector('.p-u-3>.info-title');
-    iconTitle.textContent = "Choose one...";
-    iconTitle.setAttribute("style", "background-color: #f89b4f");
+function showEdit(){
+    modifyElement(getElement('.p-u-2>.info-title'), {atrs:{
+        textContent: "New name...",
+    }, stys:{
+        backgroundColor: "#f89b4f" 
+    }}, getElement('.p-u-2'));
 
-    let iconDiv =  document.querySelector('.p-u-3>.info-content');
+    let name = getElement('.p-u-2>.info-content').textContent;
+    getElement('.p-u-2').removeChild(getElement('.p-u-2>.info-content'))
+    createElement('INPUT', {atrs:{
+        className: 'info-content input-effect',
+        value: name
+    }}, getElement('.p-u-2'));
+
+
+    modifyElement(getElement('.p-u-3>.info-title'), {atrs:{
+        textContent: "Choose one...",
+    }, stys:{
+        backgroundColor: "#f89b4f" 
+    }}, getElement('.p-u-3'));
+
     for(let i=0; i<7; i++){
         let randomNo = randomNoGen(96);
-        createElement('IMG', {atrs:{
+        let icon = createElement('IMG', {atrs:{
             id: `icon/${randomNo}`,
             className: 'icon-48 hover-effect',
             src: `../img/icon/${randomNo}.png`
-        }, evts:{
-            click: chooseIcon
-        }}, iconDiv);
+        }}, getElement('.p-u-3>.info-content'));
+
+        icon.addEventListener('click', function(){
+            let nodes = getElementAll('.info-content>img');
+            Array.from(nodes).forEach(n=>n.class='icon-48 hover-effect');
+            this.className = "icon-48 selected";
+        })
     }
-    function chooseIcon(event){
-        let nodes = getElementAll('.info-content>img');
-        Array.from(nodes).forEach(n=>n.className='icon-48 hover-effect');
-        event.target.className = "icon-48 selected";
-    }
-    event.target.parentNode.removeChild(event.target);
-    createElement('BUTTON', {atrs:{
+    modifyElement(getElement('#edit-profile'), {atrs:{
+        id: 'close-edit-profile',
         className: 'btn btn-submit',
         textContent: 'OK'
     }, evts:{
         click: closeEdit
-    }}, document.querySelector('.profile-last'));
-    function closeEdit(event){
-        event.target.parentNode.removeChild(event.target);
-        let iconDiv = document.querySelector('.p-u-3>.info-content');
-        
-        let selectedIcon = document.querySelector('.info-content>img.selected');
-        if(!selectedIcon){
-            while(iconDiv.children.length>1){
+    }}, getElement('.profile-last'));
+    getElement('#close-edit-profile').removeEventListener('click', showEdit)
+}
+function closeEdit(){
+    let updateData = {};
+    let nameDiv = getElement('.p-u-2');
+    let nameContent = getElement('.p-u-2>.info-content');
+    let nameTitle = getElement('.p-u-2>.info-title');
+    
+    let newName = nameContent.value;
+    if(newName != misc.userData.data.name){
+        updateData.name = newName;
+    }
+    
+    nameDiv.removeChild(nameContent)
+    createElement('DIV', {atrs:{
+        className: 'info-content',
+        textContent: newName
+    }}, nameDiv);
+    
+    modifyElement(nameTitle, {atrs:{
+        textContent: "Name",
+    }, stys:{
+        backgroundColor: "#afafaf" 
+    }}, nameDiv);
+    
+    let iconDiv = getElement('.p-u-3>.info-content');
+    let selectedIcon = getElement('.info-content>img.selected');
+    if(!selectedIcon){
+        while(iconDiv.children.length>1){
             iconDiv.removeChild(iconDiv.lastChild);
-        }}else{
-            iconDiv.innerHTML = "";
-            createElement('IMG', {atrs:{
-                className: 'icon-48',
-                src: `../img/${selectedIcon.id}.png`
-            }}, iconDiv);
-            updateUserData('icon', {icon: selectedIcon.id, user_id: localStorage.getItem('user_id')})
-                .then(function(result){
-                    if(result.message===true){
-                        alertBox("圖示已更新！");
-                    }else{
-                        alertBox("圖示更新失敗，請稍後再試。");
-                    }
-                });
         }
+    }else{
+        removeChildOf('.p-u-3>.info-content');
+        createElement('IMG', {atrs:{
+            className: 'icon-48',
+            src: `../img/${selectedIcon.id}.png`
+        }}, iconDiv);
+        updateData.icon = selectedIcon.id;
+    }
 
-        let iconTitle = document.querySelector('.p-u-3>.info-title');
-        iconTitle.textContent = "Icon";
-        iconTitle.setAttribute("style", "background-color: rgb(175, 175, 175)");
+    modifyElement(getElement('.p-u-3>.info-title'), {atrs:{
+        textContent: "Icon",
+    }, stys:{
+        backgroundColor: "#afafaf" 
+    }}, getElement('.p-u-3'));
+    
+    modifyElement(getElement('#close-edit-profile'), {atrs:{
+        id: 'edit-profile',
+        className: 'btn btn-altered',
+        textContent: 'Edit'
+    }, evts:{
+        click: showEdit
+    }}, getElement('.profile-last'));
+    getElement('#edit-profile').removeEventListener('click', closeEdit);
 
-        createElement('BUTTON', {atrs:{
-            className: 'btn btn-altered',
-            textContent: 'Edit'
-        }, evts:{
-            click: showEdit
-        }}, document.querySelector('.profile-last'));
-        
+    // Update data if any change
+    if(Object.keys(updateData).length>0){
+        updateUserData(updateData).then(function(result){
+            if(result.status===200){
+                for(let key in updateData){
+                    misc.userData.data[key] = updateData[key];
+                }
+                alertBox("資料已更新！");
+            }
+        }).catch(function(result){
+            if(result.status===500){
+                alertBox("資料更新失敗，請稍後再試。");
+            }
+        });
     }
 }
-function updateUserData(field, data){
-    return fetch(`/user/update/${field}`, {
-        method: "POST",
-        headers: {
-            'Authorization':`Bearer ${localStorage.getItem('access_token')}`,
-            'Content-Type':'application/json'
-        },
-        body: JSON.stringify(data)
-    }).then(function(result){
-        return result.json();
-    });
-}
-function showLikedList(tabName){
+
+function showWatchList(tabName){    
     // -- Reset content -- //
     let profileContent = document.querySelector('.profile-content');
     profileContent.innerHTML="";
@@ -440,213 +477,164 @@ function showLikedList(tabName){
         textContent: '管理活動'
     }}, document.querySelector('.profile-title'));
 
-
     let panel = createElement('DIV', {atrs:{
         className: "user-actl-panel"
     }}, profileContent);
     let tab = createElement('DIV', {atrs:{
         className: "user-actl-tab flex-r-st"
     }}, panel);
-    createElement('DIV', {atrs:{
+    let likedTab = createElement('DIV', {atrs:{
         id: 'user-actl-tab-liked',
         textContent: '關注'
-    }, evts:{
-        click: switchMgmtTab
     }}, tab);
-    createElement('DIV', {atrs:{
+    let joinedTab = createElement('DIV', {atrs:{
         id: 'user-actl-tab-joined',
         textContent: '參加'
-    }, evts:{
-        click: switchMgmtTab
     }}, tab);
-    createElement('DIV', {atrs:{
+    let heldTab = createElement('DIV', {atrs:{
         id: 'user-actl-tab-held',
         textContent: '舉辦'
-    }, evts:{
-        click: switchMgmtTab
     }}, tab);
     createElement('DIV', {atrs:{
-        className: 'user-actl-list-container'
+        className: 'user-actl-container'
     }}, profileContent);
-
-
+    likedTab.addEventListener('click', function(){
+        generateWatchContent('liked');
+    });
+    joinedTab.addEventListener('click', function(){
+        generateWatchContent('joined');
+    });
+    heldTab.addEventListener('click', function(){
+        generateWatchContent('held');
+    });
+    
     // default management tab view
-    tabName ? showMgmtTabContent(tabName) : showMgmtTabContent('liked');
+    tabName ? generateWatchContent(tabName) : generateWatchContent('liked');
+}
+async function generateWatchContent(tabName){
+    // Store current tab infomation
+    misc.currentTab = tabName;
+
+    // Reset tab view
+    let tabs = getElementAll('.user-actl-tab>div');
+    Array.from(tabs).map(t=>t.className='');
+    getElement(`#user-actl-tab-${tabName}`).classList += 'active';
+    removeChildOf('.user-actl-container');
+
+    // Create main frame
+    let preference = JSON.parse(localStorage.getItem('preference'));
+    let detail = await getUserActivities(preference[tabName].join(","));
+    let title = createElement('DIV', {atrs:{
+        className: 'flex-r-b'
+    }}, getElement('.user-actl-container'));
+    createElement('DIV', {stys:{width: '60px'}}, title);
+    createElement('DIV', {atrs:{
+        className: 'user-actl-list-title',
+        innerHTML: mgmtText(tabName, detail.length)
+    }}, title);
+    let imgDiv = createElement('DIV', '', title);
+    let eyeView = createElement('IMG', {atrs:{
+        id: 'edit-visible',
+        className: 'icon-24 hover-effect',
+        src:"../img/visible.png"
+    }, stys:{
+        margin: '0px 3px'
+    }}, imgDiv);
+    let editPen = createElement('IMG', {atrs:{
+        className: 'icon-24 hover-effect',
+        src:"../img/edit.png"
+    }, stys:{
+        margin: '0px 3px'
+    }}, imgDiv);
+    createElement('DIV', {atrs:{
+        className: 'user-actl-list'
+    }}, getElement('.user-actl-container'));
     
-    function switchMgmtTab(event){
-        let tabs = getElementAll('.user-actl-tab>div');
-        Array.from(tabs).map(t=>t.className='');
-        event.target.classList += 'active';
-        showMgmtTabContent(event.target.id.split('user-actl-tab-')[1]);
+    // Show remove icon
+    editPen.addEventListener('click', function(){
+        let crosses = getElementAll('.user-actl-card>img');
+        Array.from(crosses).forEach(c=>c.classList.toggle('hide'));
+    });
+    
+    // Not showing passed activities
+    eyeView.addEventListener('click', function(event){
+        let element = event.target;
+        let status = element.id.split('-')[1];
+        let allCards = Array.from(getElementAll('.user-actl-list>div'));
+        let oldCards = allCards.filter(n=>n.classList.contains('old-card'));
+        getElement('.user-actl-list-title').innerHTML=mgmtText(tabName, allCards.length, 'visible');
+        if(status==='invisible'){
+            element.id = `edit-visible`;
+            element.src = `../img/visible.png`;
+            oldCards.forEach(o=>o.style.display='flex');
+        }else{
+            getElement('.user-actl-list-title').innerHTML=mgmtText(tabName, allCards.length-oldCards.length, 'invisible');
+            element.id = `edit-invisible`;
+            element.src = `../img/invisible.png`;
+            oldCards.forEach(o=>o.style.display='none');
+        }
+    })
+    
+    renderUserActivityList(detail);
+    function mgmtText(tabName, count, visibility){
+        if(visibility==='invisible'){
+            return count===0 ? "沒有即將展開的活動..." : `有<strong>${count}</strong>個活動即將展開...`;
+        }
+        let action = '';
+        if(tabName==='liked'){action='關注'}
+        if(tabName==='joined'){action=`參加`}
+        if(tabName==='held'){action=`舉辦`}
+        return count===0 ? `沒有${action}的活動...` : `${action}了<strong>${count}</strong>個活動...`;
     }
-    async function showMgmtTabContent(tabName){
-        misc.currentActivityMgmtTabName = tabName;
-        let preference = JSON.parse(localStorage.getItem('preference'));
-        let detail = await fetch(`/user/activity?actl_id=${preference[tabName].join(",")}`).then(r=>r.json());
-        console.log(detail)
-        let container = document.querySelector('.user-actl-list-container');
-        container.innerHTML="";
-        let title = createElement('DIV', {atrs:{className: 'flex-r-b'}}, container);
-        createElement('DIV', {stys:{width: '60px'}}, title);
+}
+function renderUserActivityList(detail){
+    // Get tab name from memory
+    let tabName = misc.currentTab;
+    for(let i=0; i<detail.length; i++){
+        let card = createElement('DIV', {atrs:{
+            id: `${tabName}-${detail[i].actl_id}`,
+            className: `user-actl-card ${(new Date(detail[i].t_start)) > Date.now() ? 'new-card' : 'old-card'}`
+        }}, getElement('.user-actl-list'));
         createElement('DIV', {atrs:{
-            className: 'user-actl-list-title',
-            innerHTML: mgmtText(tabName, detail.length)
-        }}, title);
-        let imgDiv = createElement('DIV', '', title);
-        createElement('IMG', {atrs:{
-            id: 'edit-invisible',
-            className: 'icon-24 hover-effect hide',
-            src:"../img/invisible.png"
-        }, stys:{
-            margin: '0px 3px'
+            className: 'user-card-no',
+            textContent: i+1
+        }}, card);
+        let content = createElement('DIV', {atrs:{className: 'user-card-content flex-r-b'}}, card);
+        createElement('DIV', {atrs:{
+            id: `${tabName}-${detail[i].actl_id}-title`,
+            className: 'hover-effect',
+            textContent: detail[i].title
         }, evts:{
-            click: switchVisibility
-        }}, imgDiv);
-        createElement('IMG', {atrs:{
-            id: 'edit-visible',
-            className: 'icon-24 hover-effect',
-            src:"../img/visible.png"
-        }, stys:{
-            margin: '0px 3px'
-        }, evts:{
-            click: switchVisibility
-        }}, imgDiv);
-        createElement('IMG', {atrs:{
-            className: 'icon-24 hover-effect',
-            src:"../img/edit.png"
-        }, stys:{
-            margin: '0px 3px'
-        }, evts:{
-            click: showPreferenceEditor
-        }}, imgDiv);
-        createElement('DIV', {atrs:{className: 'user-actl-list'}}, container);
-
-        // Not showing passed activities
-        // detailFuture = detail.filter(d=>(new Date(d.t_start))>Date.now());
-
-        createUserActivityList(detail);
-        async function switchVisibility(){
-            document.querySelector('.user-actl-list').innerHTML = "";
-            let title = document.querySelector('.user-actl-list-title');
-            let visible = document.querySelector('#edit-visible');
-            visible.classList.toggle('hide');
-            let invisible = document.querySelector('#edit-invisible');
-            invisible.classList.toggle('hide');
-            let detail = await fetch(`/user/activity?actl_id=${preference[tabName].join(",")}`).then(r=>r.json());
-            if(visible.classList.contains('hide')){
-                // Current status is invisible
-                detailFuture = detail.filter(d=>(new Date(d.t_start))>Date.now());
-                createUserActivityList(detailFuture);
-                title.innerHTML = mgmtText(misc.currentActivityMgmtTabName, detailFuture.length, 'invisible');
-            }else{
-                // Current status is visible
-                createUserActivityList(detail);
-                title.innerHTML = mgmtText(misc.currentActivityMgmtTabName, detail.length, 'visible');
-            }
-        }
-        function showPreferenceEditor(){
-            let crosses = getElementAll('.user-actl-card>img');
-            Array.from(crosses).forEach(c=>c.classList.toggle('hide'));
-        }
-        function mgmtText(tabName, count, visibility){
-            if(visibility==='invisible'){
-                return count===0 ? "沒有即將展開的活動..." : `有<strong>${count}</strong>個活動即將展開...`;
-            }
-            let action = '';
-            if(tabName==='liked'){action='關注'}
-            if(tabName==='joined'){action=`參加`}
-            if(tabName==='held'){action=`舉辦`}
-            return count===0 ? `沒有${action}的活動...` : `${action}了<strong>${count}</strong>個活動...`;
-        }
-        function createUserActivityList(detail){
-            let card, content;
-            for(let i=0; i<detail.length; i++){
-                card = createElement('DIV', {atrs:{
-                    id: `${tabName}card-${detail[i].actl_id}`,
-                    className: 'user-actl-card'
-                }}, document.querySelector('.user-actl-list'));
-                createElement('DIV', {atrs:{
-                    className: 'user-card-no',
-                    textContent: i+1
-                }}, card);
-                content = createElement('DIV', {atrs:{className: 'user-card-content flex-r-b'}}, card);
-                createElement('DIV', {atrs:{
-                    id: `${tabName}-${detail[i].actl_id}-title`,
-                    className: 'hover-effect',
-                    textContent: detail[i].title
-                }, evts:{
-                    click: showActivityContent
-                }}, content);
-                createElement('P', {atrs:{
-                    id: `${tabName}-${detail[i].actl_id}-time`,
-                    className: 'title',
-                    textContent: timeFormatter(detail[i].t_start, 'md', 'hm')
-                }}, content);
-                
-                if(tabName==='held'){
-                    createElement('IMG', {atrs:{
-                        id: `${tabName}-${detail[i].actl_id}-edit`,
-                        className: 'icon-24 hover-effect hide',
-                        src:'../img/document.png'
-                    }, evts:{
-                        click: editActivityOnProfile
-                    }}, card);
-                }
-    
-                createElement('IMG', {atrs:{
-                    id: `${tabName}-${detail[i].actl_id}-delete`,
-                    className: 'icon-24 hover-effect hide',
-                    src:'../img/delete-r.png'
-                }, evts:{
-                    click: removeActivity
-                }}, card);
-            }
-        }
+            click: showActivityContent
+        }}, content);
+        createElement('P', {atrs:{
+            id: `${tabName}-${detail[i].actl_id}-time`,
+            className: 'title',
+            textContent: timeFormatter(detail[i].t_start, 'md', 'hm')
+        }}, content);
         
-        async function editActivityOnProfile(event){
-            misc.editingActivityId = event.target.id.split('-')[1];
-            generateActivityPlanner();
-            getElement('.activity-title>p').textContent = "編輯活動";
-            let result = await fetch(`/get/activity/?actl_id=${misc.editingActivityId}`).then(r=>r.json());
-            getElement("#actl-u-title").value = result.content.title;
-            getElement("#actl-u-type").value = result.content.actl_type;
-            getElement("#actl-u-place").value = `${result.content.lat.toFixed(4)}, ${result.content.lng.toFixed(4)}`;
-            getElement("#actl-u-t_start").value = timeFormatter(result.content.t_start, 'ymd', 'hm');
-            getElement("#actl-u-t_end").value = timeFormatter(result.content.t_end, 'ymd', 'hm');
-            getElement("#actl-u-description").value = result.content.description;
-            getElement("#create-activity").removeEventListener('click', createActivity);
-            getElement("#create-activity").addEventListener('click', editActivity);
+        if(tabName==='held'){
+            let editor = createElement('IMG', {atrs:{
+                id: `${tabName}-${detail[i].actl_id}-edit`,
+                className: 'icon-24 hover-effect hide',
+                src:'../img/document.png'
+            }}, card);
+            editor.addEventListener('click', function(){
+                generateActivityEditor(detail[i].actl_id);
+            });
+        }
 
-            switchElementView('#modal-activity-planner', 'flex');
-        }
-        async function removeActivity(event){
-            let status = await alertBox('確定移除此活動?', 'showCancel');
-            if(status===true){
-                // Dealing with DB update ...
-                let action = event.target.id.split('-')[0];
-                let actl_id = event.target.id.split('-')[1];
-                if(action==='liked'||action==='joined'){
-                    updateActivityStatus(event, function(event, result){
-                        if(result.message==='removed'){
-                            updatePreference(actl_id, action, 'delete')
-                            alertBox('成功移除此活動').then(function(){
-                                showLikedList(tabName);
-                            })
-                        }else{
-                            alertBox("無法移除此活動，請稍後再試。");
-                        }
-                    });
-                }else if(action==='held'){
-                    await fetch(`/user/delete/activity?actl_id=${actl_id}`);
-                    updatePreference(actl_id, action, 'delete');
-                    alertBox('成功移除此活動').then(function(){
-                        showLikedList(tabName);
-                    })
-                }
-            }
-        }
+        let cross = createElement('IMG', {atrs:{
+            id: `${tabName}-${detail[i].actl_id}-delete`,
+            className: 'icon-24 hover-effect hide',
+            src:'../img/delete-r.png'
+        }, evts:{
+            click: removeActivity
+        }}, card);
+        cross.addEventListener('click', function(){
+            removeActivity(detail[i].actl_id, tabName);
+        });
     }
-
 }
 function checkImageType(selector){
     let supportedType = ['jpg', 'jpeg', 'png', 'gif'];
@@ -663,19 +651,20 @@ async function handleProfileUpload(){
     if(imgObj.status===false){return alertBox('請上傳圖片檔: (jpg / jpeg / png / gif)');}
     if(!imgObj.data.name){return;}
     let status = await alertBox(`確定要上傳${imgObj.data.name}?`, 'showCancel');
-    if(status===true){
-        switchElementView('#modal-loading', 'flex');
-        let result = await uploadImage(imgObj.data, {
-            filename: 'profile',
-            user_id: localStorage.getItem('user_id')
+    if(status===false){return;}
+
+    switchElementView('#modal-loading', 'flex');
+    uploadProfileImage(imgObj.data, {
+        filename: 'profile',
+        user_id: localStorage.getItem('user_id')
+    }).then(function(result){
+        switchElementView('#modal-loading', 'none');
+        alertBox("上傳圖片成功！").then(function(){
+            getElement('#profile-picture').src = result.data;
         });
+    }).catch(function(result){
         switchElementView('#modal-loading', 'none');
         switch(result.status){
-            case 200:
-                alertBox("上傳圖片成功！").then(function(){
-                    getElement('#profile-picture').src = result.data;
-                });
-                break;
             case 401:
                 alertBox("上傳圖片失敗，請重新登入。").then(function(){
                     switchElementView('#modal-profile', 'none');
@@ -689,26 +678,10 @@ async function handleProfileUpload(){
                 alertBox("上傳圖片失敗，請稍後再試。");
                 break;
         }
-    }
+    });
 }
-function switchProfileUploadIcon(){
-    checkProfileImageType('#profile-file')
-        switchElementView('#icon-upload-profile', 'flex');
-}
-
 
 // -- Activity -- //
-function switchStartEndTimeDisplay(){
-    let StartTimeP = document.querySelector('#ac-t-start');
-    let endTimeP = document.querySelector('#ac-t-end');
-    if(StartTimeP.classList.contains('hide')){
-        StartTimeP.className = '';
-        endTimeP.className = 'hide';
-    }else{
-        StartTimeP.className = 'hide';
-        endTimeP.className = '';
-    }
-}
 function renderActivityCards(result){
     let preference = JSON.parse(localStorage.getItem('preference'));
     let {data} = result;
@@ -832,23 +805,18 @@ function renderActivityCards(result){
             }}, footerRight);
         }
 
+        let heart = createElement("IMG", {atrs:{
+            id: `like-${data[i].actl_id}`,
+            className: 'actl-card-favorite icon-30 hover-effect',
+            src: '../img/favorite.png',
+        }}, footerRight);
         if(preference && preference.liked.includes(data[i].actl_id)){
-            createElement("IMG", {atrs:{
-                id: `like-${data[i].actl_id}`,
-                className: 'actl-card-favorite icon-30 hover-effect',
-                src: '../img/favorite-filled.png',
-            }, evts:{
-                click: likeActivity
-            }}, footerRight);
-        }else{
-            createElement("IMG", {atrs:{
-                id: `like-${data[i].actl_id}`,
-                className: 'actl-card-favorite icon-30 hover-effect',
-                src: '../img/favorite.png',
-            }, evts:{
-                click: likeActivity
-            }}, footerRight);
+            heart.src = '../img/favorite-filled.png';
         }
+        heart.addEventListener('click', function(){
+            likeActivity(data[i].actl_id);
+            console.log(data[i].actl_id)
+        })
     }
 
     // dummy div
@@ -968,15 +936,18 @@ function renderActivityContent(result){
     getElement('#ac-address').innerHTML=content.address || "(無地址資訊可顯示)";
     
     getElement('#ac-ref>a').innerHTML=content.ref;
-    getElement('#ac-ref>a').href=content.ref; 
-    getElement('#ac-footer-info').innerHTML=additionalActivityInfo(content);
-    removeChildOf('#ac-going-list')
-    removeChildOf('#ac-footer-btn')
+    getElement('#ac-ref>a').href=content.ref;
+
+    removeChildOf('#ac-going-list');
+    removeChildOf('#ac-footer-btn');
     if(content.category === 'official'){
         getElement('#ac-owner').innerHTML=content.owner;
+        getElement('#ac-footer-info').innerHTML = `※此為官方活動 ${content.free===0?"，並且可能必須付費":""}。詳情請參考連結。`;
     }else if(content.category === 'custom'){
         getElement('#ac-owner').innerHTML=members.filter(m=>m.status==='held')[0].name;
+        getElement('#ac-footer-info').innerHTML="";
     }
+
     let currentUser = localStorage.getItem('user_id');
     let isJoined = false;
     for(let i=0; i<members.length; i++){
@@ -1009,13 +980,16 @@ function renderActivityContent(result){
             textContent: 'Joined'
         }}, getElement('#ac-footer-btn'));
     }else{
-        createElement('BUTTON', {atrs:{
+        let joinBtn = createElement('BUTTON', {atrs:{
             id: `join-${content.actl_id}`,
             className: "btn btn-submit ac-join",
             textContent: 'Join'
         }, evts:{
             click: joinActivity
         }}, getElement('#ac-footer-btn'));
+        joinBtn.addEventListener('click', function(){
+            joinActivity(content.actl_id)
+        })
     }
     
     // <div>Icons made by <a href="https://www.flaticon.com/authors/roundicons" title="Roundicons">Roundicons</a> from <a href="https://www.flaticon.com/"     title="Flaticon">www.flaticon.com</a></div>
@@ -1033,27 +1007,14 @@ function renderActivityContent(result){
     }else{
         getElement('#ac-map').innerHTML = "(無地點資訊可顯示)"
     }
-
-    function additionalActivityInfo(content){
-        if(content.category==='custom'){return "";}
-        if(content.category==='official'){
-            return `※此為官方活動 ${content.free===0?"，並且可能必須付費":""}。詳情請參考連結。`;
-        }
-    }
 }
-function joinActivity(event){
+function joinActivity(actl_id){
     switchElementView('#modal-loading', 'flex');
-    let actl_id = event.target.id.split('-')[1];
     updateActivityStatus(actl_id, 'join').then(function(result){
         switchElementView('#modal-loading', 'none');
         if(result.message==='added'){
             updatePreference(actl_id, 'joined', 'add');
             alertBox("成功加入此活動！").then(function(){
-                switchElementView('#modal-activity-content', 'none');
-            });
-        }else if(result.message==='removed'){
-            updatePreference(actl_id, 'joined', 'delete');
-            alertBox("取消參加此活動").then(function(){
                 switchElementView('#modal-activity-content', 'none');
             });
         }
@@ -1064,21 +1025,40 @@ function joinActivity(event){
         });
     })
 }
-function likeActivity(event){
+function likeActivity(actl_id){
     switchElementView('#modal-loading', 'flex');
-    let actl_id = event.target.id.split('-')[1];
     updateActivityStatus(actl_id, 'like').then(function(result){
         switchElementView('#modal-loading', 'none');
         if(result.message==='added'){
             updatePreference(actl_id, 'liked', 'add');
-            event.target.src = event.target.src.replace('favorite.png', 'favorite-filled.png');
+            getElement(`#like-${actl_id}`).src = '../img/favorite-filled.png';
             alertBox("已加入關注！");
         }else if(result.message==='removed'){
             updatePreference(actl_id, 'liked', 'delete');
-            event.target.src = event.target.src.replace('favorite-filled.png', 'favorite.png');
+            getElement(`#like-${actl_id}`).src = '../img/favorite.png';
             alertBox("已取消關注！");
         }
     }).catch(function(result){
+        switchElementView('#modal-loading', 'none');
+        showErrorMsg(result).then(function(){
+            switchElementView('#modal-activity-content', 'none');
+        });
+    });
+}
+async function removeActivity(actl_id, action){
+    let status = await alertBox('確定移除此活動?', 'showCancel');
+    if(status===false) return;
+
+    switchElementView('#modal-loading', 'flex');
+    updateActivityStatus(actl_id, action).then(function(){
+        triggerStatusChange();
+        switchElementView('#modal-loading', 'none');
+        updatePreference(actl_id, action, 'delete');
+        alertBox('成功移除此活動').then(function(){
+            showWatchList(action);
+        });
+    }).catch(function(result){
+        console.log(result)
         switchElementView('#modal-loading', 'none');
         showErrorMsg(result).then(function(){
             switchElementView('#modal-activity-content', 'none');
@@ -1089,7 +1069,7 @@ function showErrorMsg(data){
     switch(data.status){
         case 400:
             return alertBox("請求格式錯誤。");
-        case 403:
+        case 401: case 403:
             return alertBox("請重新登入。");
         case 500:
             return alertBox("系統繁忙，請稍後再試。");
@@ -1097,7 +1077,7 @@ function showErrorMsg(data){
 }
 // -- Search -- //
 function switchSearchMode(){
-    let status = document.querySelector('#switch-search-mode').checked;
+    let status = getElement('#switch-search-mode').checked;
     let mode = document.querySelector('.adv-search-mode');
     // let searchBox = document.querySelector('#search-main');
     let searchContainer = document.querySelector('#search-main').parentNode;
@@ -1294,8 +1274,8 @@ function searchActivityById(){
 // -- User -- //
 function showSignInForm(){
     switchElementView('#modal-sign-form', 'flex');
-    let signContent = document.querySelector('.sign-content');
-    signContent.innerHTML = "";
+    let signContent = getElement('.sign-content');
+    removeChildOf('.sign-content');
     createElement('DIV', {atrs:{
         className: 'text',
         textContent: 'Email Address:'
@@ -1333,7 +1313,7 @@ function showSignInForm(){
         textContent: 'Submit'
     }, evts:{
         click: signin
-    }}, document.querySelector('.sign-in-btn-group'));
+    }}, getElement('.sign-in-btn-group'));
     createElement('HR', {}, signContent);
     let otherWay = createElement('DIV', {atrs:{
         className: "flex-r-c",
@@ -1347,8 +1327,8 @@ function showSignInForm(){
     }}, otherWay);
 }
 function showSignUpForm(){
-    let signContent = document.querySelector('.sign-content');
-    signContent.innerHTML = "";
+    let signContent = getElement('.sign-content');
+    removeChildOf('.sign-content');
     createElement('DIV', {atrs:{
         className: 'text',
         textContent: 'Name:'
@@ -1406,20 +1386,14 @@ function showSignUpForm(){
         textContent: 'Submit'
     }, evts:{
         click: signup
-    }}, document.querySelector('.sign-in-btn-group'));
+    }}, getElement('.sign-in-btn-group'));
 }
 function signUpErrMsg(name, email, password, password2){
-    if(name.length > 30){
-        return "名稱太長，請輸入少於30個字。"
-    }else if(!email.includes('@')){
-        return "請輸入正確的電子郵件。";
-    }else if (password != password2){
-        return "請輸入相同的密碼。";
-    }else if (password.length < 6){
-        return "請輸入至少六位密碼。";
-    }else{
-        return false;
-    }
+    if(name.length > 30){return "名稱太長，請輸入少於30個字。"}
+    if(!email.includes('@')){return "請輸入正確的電子郵件。";}
+    if(password != password2){return "請輸入相同的密碼。";}
+    if(password.length < 6){return "請輸入至少六位密碼。";}
+    return false;
 }
 function logout(){
     alertBox('確定登出?', 'showCancel').then(function(status){
@@ -1476,16 +1450,16 @@ function timeFormatter(time, ymdFormat, hmsFormat){
     if(ymdFormat.includes('y')) finalArr.push(ymd[0]);
     if(ymdFormat.includes('m')) finalArr.push(ymd[1]);
     if(ymdFormat.includes('d')) finalArr.push(ymd[2]);
-    let finalYMD = finalArr.join('-')+' ';
+    let finalYMD = finalArr.join('-');
     finalArr = [];
     if(hmsFormat.includes('h')) finalArr.push(hms[0]);
     if(hmsFormat.includes('m')) finalArr.push(hms[1]);
     if(hmsFormat.includes('s')) finalArr.push(hms[2]);
     let finalHMS = finalArr.join(':');
 
-    return finalYMD+finalHMS;
+    return finalYMD+' '+finalHMS;
 }
-function clearS(selectorArr){
+function clearValue(selectorArr){
     selectorArr.forEach(s=>getElement(s).value="");
 }
 function alertBox(message, showCancel){
@@ -1494,6 +1468,14 @@ function alertBox(message, showCancel){
     getElement('#close-alert').removeEventListener('click', closeAlert);
 
     return new Promise(function(resolve, reject){
+        misc.enterListener = window.addEventListener('keyup', function(event){
+            if(event.keyCode===13||event.keyCode===27){
+                this.removeEventListener('keyup', misc.enterListener);
+                closeAlert();
+                if(event.keyCode===13){resolve(true);}
+                if(event.keyCode===27){resolve(false);}
+            }
+        })
         switchElementView('#modal-alert', 'flex');
         getElement('#alert-text').innerHTML=message;
 
@@ -1506,13 +1488,13 @@ function alertBox(message, showCancel){
             resolve(false);
         });
         if(showCancel){
-            getElement('#alert-cancel').style.display = 'flex';
+            switchElementView('#alert-cancel', 'flex');
             getElement('#alert-cancel').addEventListener('click', function(){
                 closeAlert();
                 resolve(false);
             });
         }else{
-            getElement('#alert-cancel').style.display = 'none';
+            switchElementView('#alert-cancel', 'none');
         }
     });
 }
@@ -1522,9 +1504,9 @@ function randomNoGen(upper){
 function activateCardAnimation(event){
     let actl_id = event.target.id.split('-')[1];
     if(actl_id){
-        document.querySelector(`#card-${actl_id}`).classList.add('actl-card-active');
+        getElement(`#card-${actl_id}`).classList.add('active');
         window.setTimeout(function(){
-            document.querySelector('.actl-card-active').classList.remove('actl-card-active')
+            getElement(`#card-${actl_id}`).classList.remove('active')
         }, 3000);
     }
 }

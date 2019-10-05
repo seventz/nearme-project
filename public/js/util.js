@@ -37,9 +37,11 @@ const misc = {
     endTimePicker: {},
     editingActivityId: '',
     searchActivityId: '',
+    currentTab: null,
     keywordCount: 1,
-    currentActivityMgmtTabName: '',
-    currentActivityId: ''
+    statusChange: false,
+    userData: {},
+    enterListener: null
 }
 function getElement(selector){
     return document.querySelector(selector);
@@ -50,12 +52,24 @@ function getElementAll(selector){
 function removeChildOf(selector){
     return document.querySelector(selector).innerHTML = "";
 }
-function createElement(tagName,settings,parentElement){
+function switchElementView(selector, status){
+    return document.querySelector(selector).style.display = status;
+}
+function createElement(tagName, settings, parentElement){
 	let obj=document.createElement(tagName);
-	if(settings.atrs){setAttributes(obj,settings.atrs);}
-	if(settings.stys){setStyles(obj,settings.stys);}
-	if(settings.evts){setEventHandlers(obj,settings.evts);}
+	if(settings.atrs){setAttributes(obj, settings.atrs);}
+	if(settings.stys){setStyles(obj, settings.stys);}
+	if(settings.evts){setEventHandlers(obj, settings.evts);}
 	if(parentElement instanceof Element){parentElement.appendChild(obj);}
+	return obj;
+};
+function modifyElement(obj, settings, parentElement){
+	if(settings.atrs){setAttributes(obj, settings.atrs);}
+	if(settings.stys){setStyles(obj, settings.stys);}
+	if(settings.evts){setEventHandlers(obj, settings.evts);}
+	if(parentElement instanceof Element&&parentElement!==obj.parentNode){
+		parentElement.appendChild(obj);
+	}
 	return obj;
 };
 function setStyles(obj,styles){

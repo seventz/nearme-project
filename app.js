@@ -30,21 +30,21 @@ app.use(express.static("public"));
 const dataCrawler = require("./source/dataCrawler");
 
 // -- node-cron scheduler -- //
-cron.schedule(`53 8 */${cst.crawler.update.DAY_INTEVAL} * *`, async function(){
+cron.schedule(`53 8 */${cst.crawler.update.DAY_INTEVAL} * *`, function(){
 	dataCrawler.getMeetupTP();
 	console.log("Updated Meetup automatically!");
 });
-cron.schedule(`53 9 */${cst.crawler.update.DAY_INTEVAL} * *`, async function(){
+cron.schedule(`53 7 */${cst.crawler.update.DAY_INTEVAL} * *`, function(){
 	dataCrawler.getEventPalTP();
 	console.log("Updated EventPal automatically!");
 });
-cron.schedule(`53 10 */${cst.crawler.update.DAY_INTEVAL} * *`, async function(){
+cron.schedule(`53 6 */${cst.crawler.update.DAY_INTEVAL} * *`, function(){
 	dataCrawler.getAccupassTP();
 	console.log("Updated Accupass automatically!");
 });
 
 
-app.get('/', async function(req, res){
+app.get('/', function(req, res){
 	res.sendFile(path.join(__dirname + "/index.html"));
 });
 
@@ -52,18 +52,21 @@ app.get('/', async function(req, res){
 let lastSearchedTitle = [];
 let lastSearch = [];
 let lastParams = '';
-app.get('/filter/:f', async function(req, res){
-	let {f} = req.params;
+app.get('/filter/:mode', async function(req, res){
+	let {mode} = req.params;
 	let {cat, type, owner, dist, center, listing, paging} = req.query;
 	let {user_id, actl_id} = req.query;
 
 	let timeNow = lib.getLocalISOTime();
 
-	(!paging) ? paging = 0 : paging = parseInt(paging);
-	(!listing) ? listing = 12 : listing = parseInt(listing);
+	paging = paging ? parseInt(paging) : 0;
+	listing = listing ? parseInt(listing) : 12;
 	
+	
+
 	let currentParams = req.query;
 
+	//// TODO: Move the whole Cache to a middleware
 	// Get [cat, center, dist, type, owner] as mainFilters
 	// Logic: if only [paging, listing] different, get data from pseudo Cache
 	let currentMainFilters = Object.values(currentParams).splice(0, 5).join(',');
@@ -72,26 +75,29 @@ app.get('/filter/:f', async function(req, res){
 	if(currentMainFilters === lastMainFilters){
 		console.log('Get data from memory.')
 		let result = lastSearch.slice(paging*listing, (paging+1)*listing);
-		res.json({data: result, info:{
+		return res.json({data: result, info:{
 			entries: lastSearch.length,
 			listing: listing,
 			paging: paging,
 			pageCount: cst.admin.PAGE_COUNT,
 			request: req.query}});
-	}else{
-		console.log("Query new data.")
+	}
 
+
+	console.log("Query new data.");
+	let filterSQL = '';
+	let subSQLs = [];
+	if(mode==='id'){
+		subSQLs.push(`actl_id = '${actl_id}'`);
+	}else{
 		let bounds = {t: null, b: null, r: null, l: null};
-		let subSQLs = [];
-		let filterSQL = '';
 		subSQLs.push(`t_start > '${timeNow}'`);
 		if(cat){subSQLs.push(`category = '${cat}'`);}
 		if(type){subSQLs.push(`actl_type = '${type}'`);}
 		if(owner){subSQLs.push(`owner = '${owner}'`)}
-
-		if(actl_id){subSQLs.push(`actl_id = '${actl_id}'`)};
+	
 		if(user_id){subSQLs.push(`owner = '${user_id}'`)};
-
+	
 		// This should be the last because SQL contains "order by"
 		if(dist && center){
 			center = {
@@ -105,33 +111,38 @@ app.get('/filter/:f', async function(req, res){
 			bounds.l = center.lng - (dist / cst.algo.LNG_TO_M_PER_DEG);
 			subSQLs.push(`(lat > ${bounds.b} AND lat < ${bounds.t} AND lng > ${bounds.l} AND lng < ${bounds.r}) ORDER BY (POW((lat-${center.lat}),2) + POW((lng-${center.lng}),2))`);
 		}
-		if(subSQLs.length>0){filterSQL = `WHERE ${subSQLs.join(' AND ')}`;}
-		
-		let query = `SELECT * FROM data ${filterSQL}`;
-		let result = await mysql.queryp(query, null, errMsg);
-
-		// Store last searched data in pseudo Cache
-		lastSearch = result;
-		lastSearchedTitle = result.map(function(r){
-			return {
-				actl_id: r.actl_id,
-				title: r.title
-			}
-		});
-		////////
-		
-		// Send limited data to front-end
-		let listingResult = result.slice(paging*listing, (paging+1)*listing);
-		res.json({
-			data: listingResult,
-			info:{
-				entries: result.length,
-				listing: listing,
-				paging: paging,
-				pageCount: cst.admin.PAGE_COUNT,
-				request: req.query
-			}});
 	}
+	
+	if(subSQLs.length>0){filterSQL = `WHERE ${subSQLs.join(' AND ')}`;}
+	
+	let query = `SELECT * FROM data ${filterSQL}`;
+	console.log(query)
+	let result = await mysql.queryp(query, null, errMsg);
+
+	
+	// Send limited data to front-end
+	let listingResult = result.slice(paging*listing, (paging+1)*listing);
+	res.json({
+		data: listingResult,
+		info:{
+			entries: result.length,
+			listing: listing,
+			paging: paging,
+			pageCount: cst.admin.PAGE_COUNT,
+			request: req.query
+		}});
+
+
+	// Store last searched data in pseudo Cache
+	lastSearch = result;
+	lastSearchedTitle = result.map(function(r){
+		return {
+			actl_id: r.actl_id,
+			title: r.title
+		}
+	});
+	////////
+
 	// Update last search
 	lastParams = currentParams;	
 });
@@ -195,7 +206,7 @@ app.get('/get/user/icon', async function(req, res){
 	let icon = await mysql.queryp(`SELECT icon FROM user WHERE user_id = ?`, user_id);
 	res.json(icon);
 });
-app.get('/get/activity', async function(req, res){
+app.get('/get/activity', function(req, res){
 	let {actl_id} = req.query;
 	let promContent = mysql.queryp(`SELECT * FROM data WHERE actl_id = ?`, actl_id, errMsg);
 	let promMember = mysql.queryp(`SELECT activity.*, user.name, user.icon FROM activity LEFT JOIN user ON (activity.user_id = user.user_id) WHERE activity.actl_id = ? AND (activity.status = ? OR activity.status = ?)`, [actl_id, 'joined', 'held'], errMsg);
@@ -264,66 +275,66 @@ let uploadS3Activity = upload.fields([{name: 'activity', maxCount: 1}]);
 let uploadS3Profile = upload.fields([{name: 'profile', maxCount: 1}]);
 app.post('/upload/addActl', uploadS3Activity, async function(req, res){
 	// -- Update data table -- //
-	let dataPackage = req.body;
+	let data = req.body;
 	let actl_id = lib.activityIdGen();
-	dataPackage.t_start = lib.minusUTCOffset(dataPackage.t_start);
-	dataPackage.t_end = lib.minusUTCOffset(dataPackage.t_end);
-	dataPackage.id = null;
-	dataPackage.actl_id = actl_id;
-	dataPackage.category = 'custom';
-	dataPackage.title = lib.removeEmojis(dataPackage.title);
-	dataPackage.description = lib.removeEmojis(dataPackage.description);
-	dataPackage.ref = `${cst.admin.SERVER}/?event=${actl_id}`;
-	dataPackage.official_id = null;
-	dataPackage.created = lib.getLocalISOTime();
-	dataPackage.free = true;
-	dataPackage.main_img = req.files.activity ? `${cst.admin.S3_BUCKET}${req.files.activity[0].key}` : null;
+	data.t_start = lib.minusUTCOffset(data.t_start);
+	data.t_end = lib.minusUTCOffset(data.t_end);
+	data.id = null;
+	data.actl_id = actl_id;
+	data.category = 'custom';
+	data.title = lib.removeEmojis(data.title);
+	data.description = lib.removeEmojis(data.description);
+	data.ref = `${cst.admin.SERVER}/?event=${actl_id}`;
+	data.official_id = null;
+	data.created = lib.getLocalISOTime();
+	data.free = true;
+	data.main_img = req.files.activity ? `${cst.admin.S3_BUCKET}${req.files.activity[0].key}` : null;
 
 	// -- Processing location information -- //
-	let result = await processingLocation(dataPackage.address, dataPackage.lat, dataPackage.lng);
-	if(result.address){dataPackage.address = result.address}
+	let result = await processingLocation(data.address, data.lat, data.lng);
+	if(result.address){data.address = result.address}
 	if(result.location){
-		dataPackage.lat = result.location.lat;
-		dataPackage.lng = result.location.lng;
+		data.lat = result.location.lat;
+		data.lng = result.location.lng;
 	}
 
 	// -- Update activity table -- //
 	let actlData = {
 		id: null,
-		user_id: dataPackage.owner,
+		user_id: data.owner,
 		actl_id: actl_id,
 		status: 'held'
 	}
 	
 	mysql.con.beginTransaction(async function(err){
 		if(err){return mysql.con.rollback(function(err){errMsg(err);});}
-		await dao.insert('data', dataPackage);
+		await dao.insert('data', data);
 		await dao.insert('activity', actlData);
 		mysql.con.commit(function(err){
 			if(err){
 				res.json({status: 500, error: "Add activity error."});
 				return mysql.con.rollback(function(err){errMsg(err);});
 			}else{
-				res.json({status: 200, data: dataPackage});
+				res.json({status: 200, data: data});
 			}
 		});
 	});
 });
 app.post('/upload/editActl', uploadS3Activity, async function(req, res){
 	// -- Update data table -- //
-	let dataPackage = req.body;
-	dataPackage.title = lib.removeEmojis(dataPackage.title);
-	dataPackage.description = lib.removeEmojis(dataPackage.description);
-	dataPackage.t_start = lib.minusUTCOffset(dataPackage.t_start);
-	dataPackage.t_end = lib.minusUTCOffset(dataPackage.t_end);
+	let data = req.body;
+	data.title = lib.removeEmojis(data.title);
+	data.description = lib.removeEmojis(data.description);
+	data.t_start = lib.minusUTCOffset(data.t_start);
+	data.t_end = lib.minusUTCOffset(data.t_end);
 	
 	if(req.files.activity){
 		// Add new main_img
-		dataPackage.main_img = req.files.activity[0].location;
+		data.main_img = req.files.activity[0].location;
 		// Delete old main_img
-		let oldPath = await mysql.queryp(`SELECT main_img FROM data WHERE actl_id = ?`, dataPackage.actl_id, errMsg);
+		let oldPath = await mysql.queryp(`SELECT main_img FROM data WHERE actl_id = ?`, data.actl_id, errMsg);
 		if(oldPath[0].main_img){
-			let params = {Bucket:'seventz002', Delete: {Objects:[{Key: oldPath[0].main_img.split(cst.admin.S3_BUCKET)[1]}]}};
+			let params = {Bucket: cst.admin.BUCKET_NAME, Delete: {Objects:[{Key: oldPath[0].main_img.split(cst.admin.S3_BUCKET)[1]}]}};
 			s3.deleteObjects(params, function(err, data){
 				if(err) console.log(err, err.stack);
 				else{console.log(data);}
@@ -331,50 +342,48 @@ app.post('/upload/editActl', uploadS3Activity, async function(req, res){
 		}
 	}
 
-	let result = await processingLocation(dataPackage.address, dataPackage.lat, dataPackage.lng);
-	if(result.address){dataPackage.address = result.address}
+	let result = await processingLocation(data.address, data.lat, data.lng);
+	if(result.address){data.address = result.address}
 	if(result.location){
-		dataPackage.lat = result.location.lat;
-		dataPackage.lng = result.location.lng;
+		data.lat = result.location.lat;
+		data.lng = result.location.lng;
 	}
 
 	mysql.con.beginTransaction(async function(err){
 		if(err){return mysql.con.rollback(function(err){errMsg(err);});}
-		await mysql.queryp(`UPDATE data SET ? WHERE actl_id = ?`, [dataPackage, dataPackage.actl_id]);
+		await mysql.queryp(`UPDATE data SET ? WHERE actl_id = ?`, [data, data.actl_id]);
 		mysql.con.commit(function(err){
 			if(err){
 				res.json({status: 500, error: "Update activity failed."});
 				return mysql.con.rollback(function(err){errMsg(err);});
 			} else{
-				res.json({status: 200, data: dataPackage});
+				res.json({status: 200, data: data});
 			}
 		});
 	});
 });
 app.post('/upload/profile', uploadS3Profile, async function(req, res){
 	let data = req.body;
-	if(!data.user_id || data.user_id==='null'){
-		res.json({status: 401, error: "User_id required."});
-	}else if(data.filename != "profile"){
-		res.json({status: 400, error: "Invalid field name."})
-	}else{
-		let path = req.files.profile[0].location;
-
-		// Delete old profile_pic
-		let oldPath = await mysql.queryp(`SELECT profile_pic FROM user WHERE user_id = ?`, data.user_id, errMsg);
-		if(oldPath[0].profile_pic){
-			let params = {Bucket:'seventz002', Delete: {Objects:[{Key: oldPath[0].profile_pic.split(cst.admin.S3_BUCKET)[1]}]}};
-			s3.deleteObjects(params, function(err, data) {
-				if(err){console.log(err, err.stack);}
-				else{console.log(data);}
-			});
-		}
-		
-		let query = 'UPDATE user SET profile_pic = ? WHERE user_id = ?';
-		await mysql.queryp(query, [path, data.user_id], errMsg);
-		res.json({status: 200, data: path})
-	}
+	if(!data.user_id || data.user_id==='null')
+		return res.json({status: 401, error: "User_id required."});
+	if(data.filename != "profile")
+		return res.json({status: 400, error: "Invalid field name."})
 	
+	let path = req.files.profile[0].location;
+
+	// Delete old profile_pic
+	let oldPath = await mysql.queryp(`SELECT profile_pic FROM user WHERE user_id = ?`, data.user_id, errMsg);
+	if(oldPath[0].profile_pic){
+		let params = {Bucket: cst.admin.BUCKET_NAME, Delete: {Objects:[{Key: oldPath[0].profile_pic.split(cst.admin.S3_BUCKET)[1]}]}};
+		s3.deleteObjects(params, function(err, data) {
+			if(err){console.log(err, err.stack);}
+			else{console.log(data);}
+		});
+	}
+	console.log(data)
+	let query = 'UPDATE user SET profile_pic = ? WHERE user_id = ?';
+	await mysql.queryp(query, [path, data.user_id], errMsg);
+	res.json({status: 200, data: path})
 });
 
 app.post('/user/signin', async function(req, res){
@@ -502,43 +511,28 @@ app.post('/user/signup', async function(req, res){
 			});
 	}
 });
-app.get('/user/profile', bearerToken, async function(req, res){
-	const timeNow = Date.now();
-	let {provider} = req.query;
-	if(!req.token){return res.json({status: 403, error: "Access denied without token."});}
-	if(!provider){return res.json({status: 400, error: "Invalid provider."});}
-	
-	let query = "SELECT * FROM user WHERE provider = ? AND access_token = ?";
-	let queryReplacement = [provider, req.token];
-	if(provider === "native"){
-		query += " AND access_expired > ?";
-		queryReplacement.push(timeNow);
-	}
-	let userData = await mysql.queryp(query, queryReplacement, errMsg);
-	if(userData.length != 1){
-		res.json({status: 401, error: "Token expired."});
-	}else{
-		let userPreference = await mysql.queryp("SELECT * FROM activity WHERE user_id = ?", userData[0].user_id, errMsg);
-		let preference = userPreference.map(function(u){
-			return {
-				actl_id: u.actl_id,
-				status: u.status
-			}
-		});
+app.get('/user/profile', bearerToken, getUserData, async function(req, res){
+	let user = req.user;
+	mysql.queryp("SELECT * FROM activity WHERE user_id = ?", user.user_id, errMsg).then(function(result){
 		res.json({
 			status: 200, 
 			data:{
-				user_id: userData[0].user_id,
-				provider: userData[0].provider,
-				name: userData[0].name,
-				email: userData[0].email,
-				icon: userData[0].icon,
-				profile_pic: userData[0].profile_pic,
-				access_token: userData[0].access_token
+				user_id: user.user_id,
+				provider: user.provider,
+				name: user.name,
+				email: user.email,
+				icon: user.icon,
+				profile_pic: user.profile_pic,
+				access_token: user.access_token
 			}, 
-			preference: preference
+			preference: result.map(function(u){
+				return {
+					actl_id: u.actl_id,
+					status: u.status
+				}
+			})
 		});
-	}
+	});
 });
 app.get('/user/activity', function(req, res){
 	let actl_id = req.query.actl_id.split(',');
@@ -546,74 +540,81 @@ app.get('/user/activity', function(req, res){
 		res.json(result);
 	});
 });
-
-app.post('/user/status/:action', bearerToken, async function(req, res){
+app.post('/user/status/:action', bearerToken, getUserData, async function(req, res){
 	let {action} = req.params;
-	let dataPackage = {
-		actl_id: req.body.actl_id,
-		user_id: null,
-		status: null
-	};
+	let actl_id = req.body.actl_id;
+	let status = '';
+	let user_id = req.user.user_id;
+	if(action==='like'||action==='liked'){status = 'liked';}
+	if(action==='join'||action==='joined'){status = 'joined';}
+	if(action==='hold'||action==='held'){status = 'held';}
 
-	if(action!='like' && action!='join'){return res.json({status: 400, error: "Invalid request."});}
-	if(!req.token){return res.json({status: 403, error: "Access denied without token."});}
+	if(status!='liked' && status!='joined' && status!='held'){
+		return res.json({status: 400, error: "Invalid request."});
+	}
 	
-	let userData = await mysql.queryp(`SELECT user_id FROM user WHERE access_token = '${req.token}';`, null, errMsg);
-	if(userData.length===0){return res.json({status: 403, erorr: "Invalid token."});}
-	
-	dataPackage.user_id = userData[0].user_id;
-
-	if(action==='like'||action==='liked'){dataPackage.status = 'liked';}
-	else if(action==='join'||action==='joined'){dataPackage.status = 'joined';}
-
 	let query = "SELECT * FROM activity WHERE user_id = ? AND actl_id = ? AND status = ?";
-	
-	let activityStatus = await mysql.queryp(query, [dataPackage.user_id, dataPackage.actl_id, dataPackage.status], errMsg);
+	let activityStatus = await mysql.queryp(query, [user_id, actl_id, status], errMsg);
 	if(activityStatus.length===0){
-		dataPackage.id = null;
-		mysql.queryp(`INSERT INTO activity SET ?`, dataPackage, errMsg).then(function(){
+		let data = {
+			id: null,
+			actl_id: actl_id,
+			user_id: user_id,
+			status: status
+		}
+		mysql.queryp(`INSERT INTO activity SET ?`, data, errMsg).then(function(){
 			res.json({status: 200, message: 'added'});
 		}).catch(function(){
 			res.json({status: 500, error: "Insert data error."})
 		});
 	}else{
-		query = "DELETE FROM activity WHERE user_id = ? AND actl_id = ? AND status = ?";
-		mysql.queryp(query, [dataPackage.user_id, dataPackage.actl_id, dataPackage.status], errMsg).then(function(){
-			res.json({status: 200, message: 'removed'});
-		}).catch(function(){
-			res.json({status: 500, error: "Remove data error."})
-		});
+		if(status==='held'){
+			mysql.queryp("DELETE FROM data WHERE actl_id = ?", actl_id, errMsg).then(function(){
+				res.json({status: 200, message: 'removed'});
+			}).catch(function(){
+				res.json({status: 500, error: "Remove data error."})
+			});
+		}else{
+			mysql.queryp("DELETE FROM activity WHERE user_id = ? AND actl_id = ? AND status = ?", [user_id, actl_id, status], errMsg).then(function(){
+				res.json({status: 200, message: 'removed'});
+			}).catch(function(){
+				res.json({status: 500, error: "Remove data error."})
+			});
+		}
 	}
 });
-app.post('/user/delete/activity', function(req, res){
-	let {actl_id} = req.query;
-	mysql.query(`DELETE FROM data WHERE actl_id = ?`, actl_id, errMsg);
-	res.json();
-});
-
-app.post('/user/update/:item', bearerToken, function(req, res){
-	let {item} = req.params;
+app.post('/user/update/profile', bearerToken, getUserData, function(req, res){
 	let data = req.body;
-	if(!req.token){return res.json({status: 403, error: "Access denied without token."});}
-	if(item==="icon"){
-		let query = 'UPDATE user SET icon = ? WHERE user_id = ?';
-		mysql.queryp(query, [data.icon, data.user_id], errMsg).then(function(){
-			res.json({message: true});
-		}).catch(function(err){
-			console.log(err);
-			res.json({status: 500, error: 'Update data error.'})
-		});
-	}
+	let user = req.user;
+	let query = 'UPDATE user SET ? WHERE user_id = ?';
+	mysql.queryp(query, [data, user.user_id], errMsg).then(function(){
+		res.json({status: 200, message: 'updated'});
+	}).catch(function(err){	
+		res.json({status: 500, error: 'Update data error.'})
+	});
 	
 });
 
 function bearerToken(req, res, next){
 	const bearerHeader = req.headers['authorization'];
-	if(typeof bearerHeader!='undefined') {
-		const bearerToken = bearerHeader.split(' ')[1];
-		req.token = bearerToken;
+	if(typeof bearerHeader==='undefined'){
+		return res.json({status: 403, error: "Access denied without token."})
 	}
+	req.token = bearerHeader.split(' ')[1];
 	next();
+}
+
+function getUserData(req, res, next){
+	mysql.queryp("SELECT * FROM user WHERE access_token = ?", req.token, errMsg).then(function(result){
+		if(result.length!=1){
+			return res.json({status: 403, erorr: "Invalid token."})
+		}
+		if(result[0].provider==="native" && result[0].access_expired<Date.now()){
+			return res.json({status: 401, error: "Token expired."})
+		}
+		req.user = result[0];
+		next();
+	});
 }
 
 function processingLocation(address, lat, lng){

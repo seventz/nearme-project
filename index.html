@@ -70,11 +70,11 @@
                                 <p>選擇距離:</p>
                                 <p id="dist">3公里</p>
                             </div>
-                            <input type="range" id="dist-filter" min="0" max="20" step="0.1" value="3" oninput="chooseDist(this)" />
+                            <input type="range" id="dist-filter" min="0" max="20" step="0.1" value="3"/>
                         </div>
                         <div class="filter">
                             <p>選擇類別:</p>
-                            <select id="cat-filter" onchange="nextFilter(this)">
+                            <select id="cat-filter">
                                 <option selected value="">所有類別</option>
                             </select>
                         </div>
@@ -86,7 +86,7 @@
                         </div>
                         <button id="btn-filters" class="btn btn-submit">確定</button>
                         
-                        <div class="adv-search flex-r-c" onclick="showAdvSearch()">
+                        <div id="advanced-search" class="adv-search flex-r-c">
                             <div>進階搜尋</div>
                             <img class="adv-arrow" src="img/adv.png">
                         </div>
@@ -125,7 +125,7 @@
                     </div>
                     <div class="control-panel-item">
                         <div>每頁顯示筆數:</div>
-                        <select name="listing" id="page-listing" onchange="filters()">
+                        <select name="listing" id="listing-filter">
                             <option value="6">6</option>
                             <option value="12" selected>12</option>
                             <option value="24">24</option>
@@ -225,17 +225,17 @@
                     </div>
                     <hr>
                     <div class="profile-tags flex-c-c">
-                        <div class="profile-tag flex-r-c" onclick="showUserInfo()">
+                        <div id="user-info" class="profile-tag flex-r-c">
                             <img src="img/profile-a.png" class="icon-30" alt="">
                             <div>個人資訊</div>
                         </div>
                         
-                        <div class="profile-tag flex-r-c" onclick="showLikedList()">
+                        <div id="user-activity-manager" class="profile-tag flex-r-c" ">
                             <img src="img/love-a.png" class="icon-30" alt="">
                             <div>管理活動</div>
                         </div>
 
-                        <div class="profile-tag flex-r-c" onclick="logout()">
+                        <div id="logout" class="profile-tag flex-r-c" ">
                             <div>登出</div>
                         </div>
                     </div>

@@ -329,14 +329,21 @@ html, body{
 #search-activity-container.show{
     height: 48px;
     padding-bottom: 10px;
-    transition: all 0.5s ease-in-out;
+    overflow-y: inherit;
+    transition: all 0.3s linear;
+    animation: overflow-delay 0.3s;
+}
+@keyframes overflow-delay{
+    0%{overflow-y: hidden}
+    99%{overflow-y: hidden}
+    100%{overflow-y: inherit}
 }
 #search-activity-container{
     width: 80%;
     max-width: 1200px;
     height: 0px;
     overflow-y: hidden;
-    transition: all 0.5s ease-in-out;
+    transition: all 0.3s linear;
 }
 .search-mode-group{
     padding: 0px 5px;
@@ -452,9 +459,9 @@ html, body{
     box-shadow: 3px 5px 12px -5px #000000;
     transition: all 0.2s;
 }
-.actl-card-active{
+.actl-card.active{
     animation: onActive 1s;
-    animation-iteration-count: infinite;
+    animation-iteration-count: 3;
 }
 .actl-card:hover{
     transform: scale(1.05);
@@ -1025,6 +1032,10 @@ hr{
     flex-direction: column;
     align-items: center;
 }
+.profile-userinfo>input{
+    font-size: 1em;
+    text-align: center;
+}
 .info-title{
     font-size: 0.8em;
     width: 100px;
@@ -1067,7 +1078,7 @@ hr{
     color: white;
     cursor: default;
 }
-.user-actl-list-container{
+.user-actl-container{
     border: 1px solid #ccc;
     padding: 15px;
     overflow: auto;

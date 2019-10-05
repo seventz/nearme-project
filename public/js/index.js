@@ -20,6 +20,7 @@ function initPage(){
     initFilters();
     initProfileIcon();
     initMap();
+    switchSearchMode();
 }
 function initUrl(){
     let urlParams = new URLSearchParams(window.location.search);
@@ -168,6 +169,15 @@ function initListeners(){
         getElement('.adv-arrow').classList.toggle('active');
         getElement('#search-activity-container').classList.toggle('show');
     });
+    getElement('#search-activity').addEventListener('click', function(){
+        if(!misc.searchActivityId){return;}
+        renderMainView('id', misc.searchActivityId)
+        misc.searchActivityId = '';
+    })
+    getElement('#clear-search').addEventListener('click', function(){
+        clearValue(['#search-main']);
+        renderMainView('all', misc.lastSearch);
+    })
     getElement('#user-info').addEventListener('click', showUserInfo);
     getElement('#logout').addEventListener('click', logout);
     getElement('#user-activity-manager').addEventListener('click', function(){
@@ -465,7 +475,6 @@ function closeEdit(){
         });
     }
 }
-
 function showWatchList(tabName){    
     // -- Reset content -- //
     let profileContent = document.querySelector('.profile-content');
@@ -636,6 +645,7 @@ function renderUserActivityList(detail){
         });
     }
 }
+// -- Upload -- //
 function checkImageType(selector){
     let supportedType = ['jpg', 'jpeg', 'png', 'gif'];
     if(getElement(selector).files.length!=1){
@@ -940,15 +950,14 @@ function renderActivityContent(result){
 
     removeChildOf('#ac-going-list');
     removeChildOf('#ac-footer-btn');
-    if(content.category === 'official'){
+    if(content.category==='official'){
         getElement('#ac-owner').innerHTML=content.owner;
-        getElement('#ac-footer-info').innerHTML = `※此為官方活動 ${content.free===0?"，並且可能必須付費":""}。詳情請參考連結。`;
-    }else if(content.category === 'custom'){
+        getElement('#ac-footer-info').innerHTML=`※此為官方活動 ${content.free===0 ? "，並且可能必須付費" : ""}。詳情請參考連結。`;
+    }else if(content.category==='custom'){
         getElement('#ac-owner').innerHTML=members.filter(m=>m.status==='held')[0].name;
         getElement('#ac-footer-info').innerHTML="";
     }
 
-    let currentUser = localStorage.getItem('user_id');
     let isJoined = false;
     for(let i=0; i<members.length; i++){
         createElement("DIV", {atrs:{
@@ -964,7 +973,7 @@ function renderActivityContent(result){
             textContent: members[i].name
         }}, getElement(`.tip-${i}`));
 
-        if(members[i].user_id === currentUser){isJoined = true;}
+        if(members[i].user_id === misc.userData.data.user_id){isJoined = true;}
     }
 
     createElement('BUTTON', {atrs:{
@@ -973,24 +982,16 @@ function renderActivityContent(result){
     }, evts:{
         click: closeActivityContent
     }}, getElement('#ac-footer-btn'));
+    let joinBtn = createElement('BUTTON', {atrs:{
+        className: "btn btn-faded ac-join",
+        textContent: isJoined ? "Joined" : "join"
+    }}, getElement('#ac-footer-btn'));
     if(isJoined){
-        createElement('BUTTON', {atrs:{
-            id: content.actl_id,
-            className: "btn btn-faded ac-join",
-            textContent: 'Joined'
-        }}, getElement('#ac-footer-btn'));
-    }else{
-        let joinBtn = createElement('BUTTON', {atrs:{
-            id: `join-${content.actl_id}`,
-            className: "btn btn-submit ac-join",
-            textContent: 'Join'
-        }, evts:{
-            click: joinActivity
-        }}, getElement('#ac-footer-btn'));
         joinBtn.addEventListener('click', function(){
             joinActivity(content.actl_id)
-        })
+        });
     }
+        
     
     // <div>Icons made by <a href="https://www.flaticon.com/authors/roundicons" title="Roundicons">Roundicons</a> from <a href="https://www.flaticon.com/"     title="Flaticon">www.flaticon.com</a></div>
 
@@ -1078,158 +1079,79 @@ function showErrorMsg(data){
 // -- Search -- //
 function switchSearchMode(){
     let status = getElement('#switch-search-mode').checked;
-    let mode = document.querySelector('.adv-search-mode');
-    // let searchBox = document.querySelector('#search-main');
-    let searchContainer = document.querySelector('#search-main').parentNode;
-    searchContainer.innerHTML='';
-    
-    if(status===false){
-        mode.textContent = '即時';
-        createElement('INPUT', {atrs:{
-            id: 'search-main',
-            className: 'searchbox input-effect',
-            type: 'text',
-            placeholder: '輸入任意字串即時搜尋...'
-        }, stys:{
-            width: "100%"
-        }, evts:{
-            input: realtimeSearch
-        }}, searchContainer);
-    }else{
-        mode.textContent = '關鍵字'; 
-        createElement('INPUT', {atrs:{
-            id: 'search-main',
-            className: 'searchbox input-effect',
-            type: 'text',
-            placeholder: '輸入關鍵字，以符號隔開搜尋...'
-        }, stys:{
-            width: "100%"
-        }, evts:{
-            input: keywordSearch
-        }}, searchContainer);
-    }
+    removeChildOf('#search-container');
+    getElement('.adv-search-mode').textContent = status===true ? "即時" : "關鍵字" ;
+    createElement('INPUT', {atrs:{
+        id: 'search-main',
+        className: 'search-box input-effect',
+        type: 'text',
+        placeholder: status===true ? "輸入任意字串即時搜尋..." : "輸入關鍵字，以符號隔開搜尋..."
+    }, evts:{
+        input: status===true ? realtimeSearch : keywordSearch
+    }}, getElement('#search-container'));
     createElement('DIV', {atrs:{
         id: 'search-main-items',
         className: 'autocomplete-items',
-        type: 'text',
-        placeholder: '輸入關鍵字，以符號隔開搜尋...'
-    }}, searchContainer);
+        type: 'text'
+    }}, getElement('#search-container'));
 }
-function clearSearch(){
-    let lastSearch = misc.lastSearch;
-    console.log(lastSearch)
-    document.querySelector('#search-main').value = "";
-    fetch(lastSearch).then(function(response){
-            return response.json();
-        }).then(function(result){
-            renderActivityCards(result);
-            main.markers = renderMarkers(result);
-            addInfoWindow(main.markers, result);
-        }).catch(function(error){
-            console.log(error) // *TODO*: error handling
-        });
-}
-function setSearch(event){
-    let searchBox = document.querySelector('#search-main');
-    let searchList = document.querySelector('#search-main-items');
-    switch(event.type){
-        case 'click':
-            searchList.innerHTML = "";
-            searchBox.value = event.target.innerHTML;
-            misc.searchActivityId = event.target.id.split('-')[1];
-            break;
-        case 'mouseover':
-            searchBox.value = event.target.innerHTML;
-            break;
-        case 'mouseout':
-            searchBox.value = "";
-            break;
-        default:
-            break;
-    }
-}
-function setSelectType(event){
-    let box = document.querySelector('#actl-u-type');
-    let list = document.querySelector('#activity-planner-type');
-    switch(event.type){
-        case 'click':
-            list.innerHTML = "";
-            box.value = event.target.innerHTML;
-            break;
-        case 'mouseover':
-            box.value = event.target.innerHTML;
-            break;
-        case 'mouseout':
-            box.value = "";
-            break;
-        default:
-            break;
-    }
-}
-function clearSelect(event){
-    event.target.parentNode.removeChild(event.target);
-}
-function selectType(event){
-    let keyword = event.target.value.toLowerCase();
-    let fitTypes = misc.customType.filter(t=>t.toLowerCase().includes(keyword));
-    let typelist = document.querySelector('#activity-planner-type');
-    let input = document.querySelector("#actl-u-type");
-    typelist.innerHTML = "";
+function autoCompleteType(event){
+    let word = event.target.value.toLowerCase();
+    let fitTypes = misc.customType.filter(t=>t.toLowerCase().includes(word));
+    let typelist = getElement('#activity-planner-type');
+    removeChildOf('#activity-planner-type');
     if(fitTypes.length===0){
         createElement('DIV', {atrs:{
             textContent: '新增類型...'
         }, stys:{
             fontStyle: 'italic',
             color: 'grey'
-        }, evts:{
-            click: clearSelect,
         }}, typelist);
-        input.addEventListener('keyup', function(event){
-            if(event.keyCode===13 || event.keyCode===9){typelist.innerHTML=""}
-        })
     }else{
         fitTypes.forEach(function(t){
             createElement('DIV', {atrs:{
+                id: `type-${t}`,
                 textContent: t
-            }, evts:{
-                click: setSelectType,
-                mouseover: setSelectType,
-                mouseout: setSelectType,
             }}, typelist);
+            getElement(`#type-${t}`).addEventListener('mouseover', function(){
+                getElement('#actl-u-type') = this.textContent;
+            });
         });
     }
+    addKeydownResetListener('#activity-planner-type');
+    addClickResetListener('#activity-planner-type');
 }
 function realtimeSearch(){
-    let words = document.querySelector('#search-main').value;
-    let searchList = document.querySelector('#search-main-items');
+    let words = getElement('#search-main').value;
+    let list = getElement('#search-main-items');
 
-    if(words.length===0){return searchList.innerHTML = "";}
+    if(words.length===0){return removeChildOf('#search-main-items');}
+    // Not include bopomofo
     let newWords = words.replace(/[\u3100-\u312F]/g, '');
     newWords = newWords.replace(/([\"\'\&\@\#\$\%\^\/\,\!\\\^\$\{\}\[\]\(\)\.\*\+\?\|\<\>\-\&])/g, "");
     if(words.length === newWords.length){
         fetch(`/search/title/realtime?words=${newWords}`).then(function(response){
             return response.json();
         }).then(function(result){
-            searchList.innerHTML = "";
+            removeChildOf('#search-main-items');
             result.forEach(function(r){
                 createElement('DIV', {atrs:{
                     id: `search-${r.actl_id}`,
                     textContent: r.title
-                }, evts:{
-                    click: setSearch,
-                    mouseover: setSearch,
-                    mouseout: setSearch
-                }}, searchList);
+                }}, list);
+                getElement(`#search-${r.actl_id}`).addEventListener('mouseover', function(){
+                    getElement('#search-main').value = this.textContent;
+                    misc.searchActivityId = r.actl_id;
+                });
             })
         })
-    }else{
-        console.log("invalid")
     }
+    addClickResetListener('#search-main-items');
 }
 function keywordSearch(){
-    let words = document.querySelector('#search-main').value;
-    let searchList = document.querySelector('#search-main-items');
-    if(words.length===0){return searchList.innerHTML = "";}
+    let words = getElement('#search-main').value;
+    let searchList = getElement('#search-main-items');
+    if(words.length===0){return removeChildOf('#search-main-items');}
 
     let fragments = words.replace(/([\"\ \'\&\@\#\$\%\^\/\,\!\\\^\$\{\}\[\]\(\)\.\*\+\?\|\<\>\-\&])/g, ",");
     let fragmentsLength = fragments.split(',').length;
@@ -1239,36 +1161,21 @@ function keywordSearch(){
         fetch(`/search/title/keywords?words=${fragments}`).then(function(response){
             return response.json();
         }).then(function(result){
-            searchList.innerHTML = "";
+            removeChildOf('#search-main-items');
             result.forEach(function(r){
                 createElement('DIV', {atrs:{
                     id: `search-${r.actl_id}`,
                     textContent: r.title
-                }, evts:{
-                    click: setSearch,
-                    mouseover: setSearch,
-                    mouseout: setSearch
                 }}, searchList);
+                getElement(`#search-${r.actl_id}`).addEventListener('mouseover', function(){
+                    getElement('#search-main').value = this.textContent;
+                    misc.searchActivityId = r.actl_id;
+                    console.log(r.actl_id);
+                });
             })
         })
     }
-}
-function searchActivityById(){
-    let words = document.querySelector('#search-main').value;
-    if(!words||!misc.searchActivityId){return;}
-    let actl_id = misc.searchActivityId;
-    fetch(`/filter/f?actl_id=${actl_id}`)
-        .then(function(response){
-            return response.json();
-        }).then(function(result){
-            renderActivityCards(result);
-            main.markers = renderMarkers(result);
-            addInfoWindow(main.markers, result);
-        }).catch(function(error){
-            console.log(error) // *TODO*: error handling
-        });
-    // Reset id
-    misc.searchActivityId = '';
+    addClickResetListener('#search-main-items');
 }
 
 // -- User -- //
@@ -1426,12 +1333,6 @@ function removeUserData(){
     localStorage.removeItem('preference');
     localStorage.removeItem('icon');
 }
-function enterListener(event){
-    if(event.keyCode===13){
-        if(event.target.id==="sign-in-password"){signin();}
-        if(event.target.id==="sign-up-password-2"){signup();}
-    }
-}
 function updatePreference(actl_id, item, action){
     if(item==='like'){item='liked';}
     if(item==='join'){item='joined';}
@@ -1441,6 +1342,31 @@ function updatePreference(actl_id, item, action){
     localStorage.setItem('preference', JSON.stringify(pref));
 }
 
+// -- Listeners -- //
+function enterListener(event){
+    if(event.keyCode===13){
+        if(event.target.id==="sign-in-password"){signin();}
+        if(event.target.id==="sign-up-password-2"){signup();}
+    }
+}
+function addKeydownResetListener(selector){
+    // Reset items when pressing 'tab', 'esc', or 'enter'
+    document.addEventListener('keydown', resetItems);
+    function resetItems(event){
+        if(event.keyCode===13 || event.keyCode===9 || event.keyCode===27){
+            removeChildOf(selector);
+        }
+        document.removeEventListener('keydown', resetItems)
+    }
+}
+function addClickResetListener(selector){
+    // Reset items when click anywhere on the screen
+    document.addEventListener('click', resetItems);
+    function resetItems(event){
+        removeChildOf(selector);
+        document.removeEventListener('click', resetItems)
+    }
+}
 // -- Misc -- //
 function timeFormatter(time, ymdFormat, hmsFormat){
     let ymd = time.split('T')[0].split('-');

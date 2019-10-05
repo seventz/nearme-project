@@ -171,10 +171,14 @@ function getType(cat){
 function getActivityData(mode, prop){
     let queryArr = [], query = '';
     if(mode==='all'){
-        for(let name in prop){
-            queryArr.push(`${name}=${prop[name]}`);
+        if(typeof prop === "string"){
+            query = prop;
+        }else{
+            for(let name in prop){
+                queryArr.push(`${name}=${prop[name]}`);
+            }
+            query = `/filter/${mode}?${queryArr.join('&')}`;
         }
-        query = `/filter/${mode}?${queryArr.join('&')}`
         misc.lastSearch = query; // => Store the last search query
     }else if(mode==='id'){
         query = `/filter/${mode}?actl_id=${prop}`;
@@ -240,13 +244,12 @@ function generateActivityPlanner(){
         type: 'text',
         placeholder: "Type"
     }, evts:{
-        input: selectType
+        input: autoCompleteType
     }}, autocomplete);
     createElement('DIV', {atrs:{
         id: 'activity-planner-type',
         className: 'autocomplete-items',
     }}, autocomplete);
-
     section = createElement('DIV', {atrs:{
         className: 'form-section',
     }}, sub);

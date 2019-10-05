@@ -101,15 +101,15 @@
                             <span class="slider round"></span>
                         </label>
                     </div>
-                    <div class="autocomplete">
-                        <input id="search-main" class="search-box input-effect" oninput="realtimeSearch()" type="text" placeholder="關鍵字...">
+                    <div id="search-container" class="autocomplete">
+                        <input id="search-main" class="search-box input-effect" type="text">
                         <div id="search-main-items" class="autocomplete-items">
                             <!-- Autocomplete items -->
                         </div>
                     </div>
                     
-                    <button id="search-activity" class="btn btn-submit" onclick="searchActivityById()">搜尋</button>
-                    <button id="clear-search" class="btn btn-cancel" style="margin-left: 0px;" onclick="clearSearch()">清除</button>
+                    <button id="search-activity" class="btn btn-submit">搜尋</button>
+                    <button id="clear-search" class="btn btn-cancel" style="margin-left: 0px;">清除</button>
                 </div>
             </div>
         </div>

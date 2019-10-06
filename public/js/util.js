@@ -40,7 +40,7 @@ const misc = {
     currentTab: null,
     keywordCount: 1,
     statusChange: false,
-    userData: {},
+    user: {},
     enterListener: null
 }
 function getElement(selector){

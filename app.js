@@ -62,8 +62,6 @@ app.get('/filter/:mode', async function(req, res){
 	paging = paging ? parseInt(paging) : 0;
 	listing = listing ? parseInt(listing) : 12;
 	
-	
-
 	let currentParams = req.query;
 
 	//// TODO: Move the whole Cache to a middleware
@@ -75,12 +73,14 @@ app.get('/filter/:mode', async function(req, res){
 	if(currentMainFilters === lastMainFilters){
 		console.log('Get data from memory.')
 		let result = lastSearch.slice(paging*listing, (paging+1)*listing);
+		
+		console.log(result)
 		return res.json({data: result, info:{
 			entries: lastSearch.length,
 			listing: listing,
 			paging: paging,
 			pageCount: cst.admin.PAGE_COUNT,
-			request: req.query}});
+			query: req.query}});
 	}
 
 
@@ -116,10 +116,9 @@ app.get('/filter/:mode', async function(req, res){
 	if(subSQLs.length>0){filterSQL = `WHERE ${subSQLs.join(' AND ')}`;}
 	
 	let query = `SELECT * FROM data ${filterSQL}`;
-	console.log(query)
-	let result = await mysql.queryp(query, null, errMsg);
 
-	
+	let result = await mysql.queryp(query, null, errMsg);
+	console.log(result)
 	// Send limited data to front-end
 	let listingResult = result.slice(paging*listing, (paging+1)*listing);
 	res.json({
@@ -129,7 +128,7 @@ app.get('/filter/:mode', async function(req, res){
 			listing: listing,
 			paging: paging,
 			pageCount: cst.admin.PAGE_COUNT,
-			request: req.query
+			query: req.query
 		}});
 
 

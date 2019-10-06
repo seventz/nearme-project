@@ -81,7 +81,6 @@ function getMeetupTP(){
         let result = JSON.parse(body);
         if(!result.events){
             getMeetupRefreshToken(cst.auth.meetup.refresh_token).then(function(new_access_token){
-                console.log(new_access_token)
                 options.headers.Authorization = `Bearer ${new_access_token}`;
                 request(options, callback);
             }).catch(function(err){
@@ -146,11 +145,11 @@ function getMeetupTP(){
                 dataPackage.actl_id = lib.activityIdGen();
                 dataPackage.title = content[count].name;
                 dataPackage.description = lib.removeEmojis(content[count].description);
-                dataPackage.t_start = new Date(content[count].time + content[count].utc_offset);
-                dataPackage.t_end = new Date(content[count].time + content[count].utc_offset + content[count].duration);
+                dataPackage.t_start = new Date(content[count].time);
+                dataPackage.t_end = new Date(content[count].time + content[count].duration);
                 dataPackage.ref = content[count].link;
                 dataPackage.official_id = content[count].id;
-                dataPackage.created = new Date(content[count].created  + content[count].utc_offset);
+                dataPackage.created = new Date(content[count].created );
                 (content[count].member_pay_fee===false)? dataPackage.free=true : dataPackage.free=false;
     
                 dao.insert('data', dataPackage).then(function(){

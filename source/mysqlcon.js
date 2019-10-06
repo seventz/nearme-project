@@ -7,8 +7,16 @@ const mysqlCon = mysql.createConnection({
     password: cst.auth.mysql.password,
     database: cst.auth.mysql.database
 });
+// const mysqlCon = mysql.createPool({
+//     connectionLimit: cst.auth.mysql.connlimit,
+//     host: cst.auth.mysql.host,
+//     user: cst.auth.mysql.user,
+//     password: cst.auth.mysql.password,
+//     database: cst.auth.mysql.database,
+//     timezone: 'Z'
+// });
 
-mysqlCon.connect(function(err){
+mysqlCon.getConnection(function(err){
     if(err) throw err;
     else console.log("db connected!");
 });

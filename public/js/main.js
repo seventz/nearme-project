@@ -66,7 +66,6 @@ function signup(){
             if(!result.error){
                 switchElementView('#modal-sign-form', 'none');
                 localStorage.setItem('access_token', result.data.access_token); 
-                localStorage.setItem('user_id', result.data.user_id);
                 alertBox("建立帳戶成功！").then(function(){
                     setUserData(result);
                     switchProfileIcon('show');
@@ -419,7 +418,7 @@ function checkActivityInput(){
         data:{
             lat: mode==="choose" ? place.value.split(',')[0] : null,
             lng: mode==="choose" ? place.value.split(',')[1] : null,
-            owner: localStorage.getItem('user_id'),
+            owner: misc.user.data.user_id,
             title: title.value,
             actl_type: type.value,
             address: mode==="choose" ? null : place.value,

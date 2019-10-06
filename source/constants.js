@@ -50,6 +50,7 @@ const auth = {
         refresh_token: process.env.MEETUP_REFRESH_TOKEN
     },
     mysql:{
+        connlimit: process.env.MYSQL_CONNLIMIT,
         host: process.env.MYSQL_HOST,
         user: process.env.MYSQL_USER,
         password: process.env.MYSQL_PASSWORD,

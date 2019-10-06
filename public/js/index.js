@@ -247,7 +247,7 @@ function switchProfileIcon(status){
 // -- Main -- //
 function renderMainView(mode, fields){
     getActivityData(mode, fields).then(function(result){
-        renderActivityCards(result);
+        renderMainList(result);
         main.markers = renderMarkers(result);
         addInfoWindow(main.markers, result);
     });
@@ -285,11 +285,6 @@ function switchMainView(element){
 // -- User profile -- //
 function showProfilePage(){
     requestUserData().then(function(result){
-        // store user data in memory
-        misc.userData = {
-            data: result.data,
-            preference: result.preference
-        }
         getElement('#profile-picture').src = result.data.profile_pic ? result.data.profile_pic : 'img/user.png';
         showUserInfo(result);
         switchElementView('#modal-profile', 'flex');
@@ -312,9 +307,9 @@ async function showUserInfo(result){
     
     // -- get data within this function scope -- //
     let data, preference;
-    if(Object.keys(misc.userData).length!=0){
-        data = misc.userData.data;
-        preference = misc.userData.preference
+    if(Object.keys(misc.user).length!=0){
+        data = misc.user.data;
+        preference = misc.user.preference
     }else if(result){
         data = result.data;
         preference = result.preference;
@@ -413,7 +408,7 @@ function closeEdit(){
     let nameTitle = getElement('.p-u-2>.info-title');
     
     let newName = nameContent.value;
-    if(newName != misc.userData.data.name){
+    if(newName != misc.user.data.name){
         updateData.name = newName;
     }
     
@@ -464,7 +459,7 @@ function closeEdit(){
         updateUserData(updateData).then(function(result){
             if(result.status===200){
                 for(let key in updateData){
-                    misc.userData.data[key] = updateData[key];
+                    misc.user.data[key] = updateData[key];
                 }
                 alertBox("資料已更新！");
             }
@@ -477,14 +472,14 @@ function closeEdit(){
 }
 function showWatchList(tabName){    
     // -- Reset content -- //
-    let profileContent = document.querySelector('.profile-content');
-    profileContent.innerHTML="";
+    let profileContent = getElement('.profile-content');
+    removeChildOf('.profile-content');
     createElement('DIV', {atrs:{
         className: 'profile-title'
     }}, profileContent);
     createElement('P', {atrs:{
         textContent: '管理活動'
-    }}, document.querySelector('.profile-title'));
+    }}, getElement('.profile-title'));
 
     let panel = createElement('DIV', {atrs:{
         className: "user-actl-panel"
@@ -645,6 +640,7 @@ function renderUserActivityList(detail){
         });
     }
 }
+
 // -- Upload -- //
 function checkImageType(selector){
     let supportedType = ['jpg', 'jpeg', 'png', 'gif'];
@@ -666,7 +662,7 @@ async function handleProfileUpload(){
     switchElementView('#modal-loading', 'flex');
     uploadProfileImage(imgObj.data, {
         filename: 'profile',
-        user_id: localStorage.getItem('user_id')
+        user_id: misc.user.data.user_id
     }).then(function(result){
         switchElementView('#modal-loading', 'none');
         alertBox("上傳圖片成功！").then(function(){
@@ -692,40 +688,30 @@ async function handleProfileUpload(){
 }
 
 // -- Activity -- //
-function renderActivityCards(result){
-    let preference = JSON.parse(localStorage.getItem('preference'));
-    let {data} = result;
-    let {entries, listing, paging, pageCount} = result.info;
-    let {request} = result.info;
-    let currentPage = parseInt(paging)+1;
-    let lastPage = Math.floor((entries-1)/listing)+1;
-    let pageTabs = Math.floor((lastPage-1)/pageCount)+1;
-    let currentPageTab = Math.floor((currentPage-1)/pageCount)+1;
-    let thisListing = (entries - currentPage*listing) > 0 ? listing : entries - (currentPage-1)*listing;
-    let thisPageCount = (lastPage < pageCount) ? lastPage : pageCount;
-    // console.log(currentPage, lastPage, pageTabs, currentPageTab)
-
-    // Clear previous data
-    let actlDiv = document.querySelector('#activity-list');
-    let pageContainer = document.querySelector('#page-container');
-    actlDiv.innerHTML='';
-    pageContainer.innerHTML='';
-
+function renderMainList(result){
     // Show activity entries
-    if(entries === 0){
-        document.querySelector('#activity-counts').innerHTML = `沒有搜尋結果...`
-    }else{
-        document.querySelector('#activity-counts').innerHTML = `共有 <strong>${entries}</strong> 筆搜尋結果`
-    }
-
+    let entries = result.info.entries
+    getElement('#activity-counts').innerHTML = entries===0 ? `沒有搜尋結果...` : `共有 <strong>${entries}</strong> 筆搜尋結果`
     // Create cards
+    renderCards(result.data);
+    // dummy div
+    createElement("DIV", {stys:{
+        height: '20px',
+        width: '100%'
+    }}, getElement('#activity-list'));
+    // Create pages
+    renderPages(result.info);
+}
+function renderCards(data){
+    removeChildOf('#activity-list');
+    let preference = JSON.parse(localStorage.getItem('preference'));
     let actlCard, cardImg, content, footer, owner, 
     ownerWrapper, header, main, footerLeft, footerRight;
-    for(let i=0; i<thisListing; i++){
+    for(let i=0; i<data.length; i++){
         actlCard = createElement('DIV', {atrs:{
             id: `card-${data[i].actl_id}`,
             className: `actl-card`
-        }}, actlDiv);
+        }}, getElement('#activity-list'));
         
         // Anchor for info window //
         createElement('A', {atrs:{
@@ -825,17 +811,19 @@ function renderActivityCards(result){
         }
         heart.addEventListener('click', function(){
             likeActivity(data[i].actl_id);
-            console.log(data[i].actl_id)
         })
     }
+}
+function renderPages(info){
+    removeChildOf('#page-container');
+    let {entries, listing, paging, pageCount, query} = info;
+    let currentPage = parseInt(paging)+1;
+    let lastPage = Math.floor((entries-1)/listing)+1;
+    let pageTabs = Math.floor((lastPage-1)/pageCount)+1;
+    let currentPageTab = Math.floor((currentPage-1)/pageCount)+1;
+    let currentPageCount = (lastPage < pageCount) ? lastPage : pageCount;
 
-    // dummy div
-    createElement("DIV", {stys:{
-        height: '20px',
-        width: '100%'
-    }}, actlDiv);
-
-    // Create pages
+    let pageContainer = getElement('#page-container');
     let pagePrevAll = createElement('DIV', {atrs:{
         id: 'page-prevall',
         className: 'page-box',
@@ -847,21 +835,23 @@ function renderActivityCards(result){
         textContent: '上一頁'
     }}, pageContainer);
     let pageCountDIV = createElement('DIV', {atrs:{
-        id: `${data.cat}-${data.type}-${data.owner}-${data.dist}-${data.lat},${data.lng}-${paging}`,
         className: 'page-count'
     }}, pageContainer);
     
-    let pageCountStart = (currentPageTab-1)*thisPageCount+1;
-    let pageCountEnd = (pageCountStart+pageCount-1)>lastPage ? lastPage : pageCountStart+result.info.pageCount-1;
+    let pageCountStart = (currentPageTab-1)*currentPageCount+1;
+    let pageCountEnd = (pageCountStart+pageCount-1)>lastPage ? lastPage : pageCountStart+pageCount-1;
 
     for(let i=pageCountStart; i<=pageCountEnd; i++){
         createElement('DIV', {atrs:{
             id: `page-${i}`,
             className: 'page-box',
             textContent: i,
-        }, evts:{
-            click: renderLocationByPage
         }}, pageCountDIV);
+        if(i!=currentPage){
+            getElement(`#page-${i}`).addEventListener('click', function(){
+                renderMainViewByPage(query, i);
+            })
+        }
     }
 
     let pageNext = createElement('DIV', {atrs:{
@@ -878,60 +868,41 @@ function renderActivityCards(result){
         className: 'page-sum',
         textContent: `共${lastPage}頁`
     }}, pageContainer);
-
+    
     // Logic for each page click button
     if(currentPage != 1){
-        pagePrev.addEventListener('click', renderLocationByPage);
+        pagePrev.addEventListener('click', function(){
+            renderMainViewByPage(query, currentPage-1);
+        });
     }else{
         pagePrev.classList.add('page-disabled');
     }
     if(currentPage != lastPage){
-        pageNext.addEventListener('click', renderLocationByPage);
+        pageNext.addEventListener('click', function(){
+            renderMainViewByPage(query, currentPage+1);
+        });
     }else{
         pageNext.classList.add('page-disabled');
     }
-    if(currentPage/thisPageCount > 1){
-        pagePrevAll.addEventListener('click', renderLocationByPage);
+    if(currentPage/currentPageCount > 1){
+        pagePrevAll.addEventListener('click', function(){
+            renderMainViewByPage(query, currentPage-pageCount);
+        });
     }else{
         pagePrevAll.classList.add('page-disabled');
     }
     if(currentPageTab < pageTabs){
-        pageNextAll.addEventListener('click', renderLocationByPage);
+        pageNextAll.addEventListener('click', function(){
+            renderMainViewByPage(query, currentPage+pageCount);
+        });
     }else{
         pageNextAll.classList.add('page-disabled');
     }
-
-    // Current page set to be unclickable
-    ActivatePageNo(currentPage);
-    function ActivatePageNo(pageNo){
-        if(!pageNo || lastPage === 0) return;
-        document.querySelector(`#page-${pageNo}`).removeEventListener('click', renderLocationByPage);
-        document.querySelector(`#page-${pageNo}`).classList.add('page-active');
-    }
-    
-    function renderLocationByPage(event){
-        let reqParam = event.target.id.split('-')[1];
-        let reqPaging = parseInt(request.paging);
-        switch(reqParam){
-            case 'prev':
-                reqPaging -= 1;
-                break;
-            case 'next':
-                reqPaging += 1;
-                break;
-            case 'prevall':
-                reqPaging-=thisPageCount;
-                break;
-            case 'nextall':
-                reqPaging+=thisPageCount;
-                break;
-            default:
-                reqPaging = parseInt(reqParam) - 1;
-                break;
-        }
-        request.paging = reqPaging;
-        renderMainView('all', request);
-    }
+    getElement(`#page-${currentPage}`).classList.add('page-disabled')
+}
+function renderMainViewByPage(query, page){
+    query.paging = page-1;
+    renderMainView('all', query);
 }
 function renderActivityContent(result){
     let content = result.content;
@@ -973,7 +944,9 @@ function renderActivityContent(result){
             textContent: members[i].name
         }}, getElement(`.tip-${i}`));
 
-        if(members[i].user_id === misc.userData.data.user_id){isJoined = true;}
+        if(misc.user.data && members[i].user_id === misc.user.data.user_id){
+            isJoined = true;
+        }
     }
 
     createElement('BUTTON', {atrs:{
@@ -983,10 +956,13 @@ function renderActivityContent(result){
         click: closeActivityContent
     }}, getElement('#ac-footer-btn'));
     let joinBtn = createElement('BUTTON', {atrs:{
-        className: "btn btn-faded ac-join",
+        className: "btn ac-join",
         textContent: isJoined ? "Joined" : "join"
     }}, getElement('#ac-footer-btn'));
     if(isJoined){
+        joinBtn.classList.add('btn-faded');
+    }else{
+        joinBtn.classList.add('btn-submit');
         joinBtn.addEventListener('click', function(){
             joinActivity(content.actl_id)
         });
@@ -1076,6 +1052,7 @@ function showErrorMsg(data){
             return alertBox("系統繁忙，請稍後再試。");
     }
 }
+
 // -- Search -- //
 function switchSearchMode(){
     let status = getElement('#switch-search-mode').checked;
@@ -1314,10 +1291,13 @@ function logout(){
     });
 }
 function setUserData(result){
+    // store user data in memory
+    misc.user = {
+        data: result.data,
+        preference: result.preference
+    }
     localStorage.setItem('access_token', result.data.access_token);
-    localStorage.setItem('user_id', result.data.user_id);
     localStorage.setItem('provider', result.data.provider);
-    localStorage.setItem('icon', result.data.icon);
     let userPref = {liked: [], joined: [], held:[]};
     result.preference.forEach(function(p){
         if(p.status==="liked"){userPref.liked.push(p.actl_id);}
@@ -1328,10 +1308,8 @@ function setUserData(result){
 }
 function removeUserData(){
     localStorage.removeItem('access_token');
-    localStorage.removeItem('user_id');
     localStorage.removeItem('provider');
     localStorage.removeItem('preference');
-    localStorage.removeItem('icon');
 }
 function updatePreference(actl_id, item, action){
     if(item==='like'){item='liked';}

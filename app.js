@@ -43,11 +43,9 @@ cron.schedule(`53 6 */${cst.crawler.update.DAY_INTEVAL} * *`, function(){
 	console.log("Updated Accupass automatically!");
 });
 
-
 app.get('/', function(req, res){
 	res.sendFile(path.join(__dirname + "/index.html"));
 });
-
 // Turn to Cache in the future
 let lastSearchedTitle = [];
 let lastSearch = [];
@@ -74,7 +72,6 @@ app.get('/filter/:mode', async function(req, res){
 		console.log('Get data from memory.')
 		let result = lastSearch.slice(paging*listing, (paging+1)*listing);
 		
-		console.log(result)
 		return res.json({data: result, info:{
 			entries: lastSearch.length,
 			listing: listing,
@@ -118,7 +115,6 @@ app.get('/filter/:mode', async function(req, res){
 	let query = `SELECT * FROM data ${filterSQL}`;
 
 	let result = await mysql.queryp(query, null, errMsg);
-	console.log(result)
 	// Send limited data to front-end
 	let listingResult = result.slice(paging*listing, (paging+1)*listing);
 	res.json({
@@ -276,8 +272,6 @@ app.post('/upload/addActl', uploadS3Activity, async function(req, res){
 	// -- Update data table -- //
 	let data = req.body;
 	let actl_id = lib.activityIdGen();
-	data.t_start = lib.minusUTCOffset(data.t_start);
-	data.t_end = lib.minusUTCOffset(data.t_end);
 	data.id = null;
 	data.actl_id = actl_id;
 	data.category = 'custom';
@@ -304,19 +298,16 @@ app.post('/upload/addActl', uploadS3Activity, async function(req, res){
 		actl_id: actl_id,
 		status: 'held'
 	}
+	let querySet = [
+		{query: "INSERT INTO data SET ?", data: data}, 
+		{query: "INSERT INTO activity SET ?", data: actlData}
+	];
 	
-	mysql.con.beginTransaction(async function(err){
-		if(err){return mysql.con.rollback(function(err){errMsg(err);});}
-		await dao.insert('data', data);
-		await dao.insert('activity', actlData);
-		mysql.con.commit(function(err){
-			if(err){
-				res.json({status: 500, error: "Add activity error."});
-				return mysql.con.rollback(function(err){errMsg(err);});
-			}else{
-				res.json({status: 200, data: data});
-			}
-		});
+	// -- Transaction with all queries -- //
+	mysql.txnQueries(querySet).then(function(){
+		res.json({status: 200, data: data});
+	}).catch(function(err){
+		res.json({status: 500, error: "Add activity error."});
 	});
 });
 app.post('/upload/editActl', uploadS3Activity, async function(req, res){
@@ -324,8 +315,6 @@ app.post('/upload/editActl', uploadS3Activity, async function(req, res){
 	let data = req.body;
 	data.title = lib.removeEmojis(data.title);
 	data.description = lib.removeEmojis(data.description);
-	data.t_start = lib.minusUTCOffset(data.t_start);
-	data.t_end = lib.minusUTCOffset(data.t_end);
 	
 	if(req.files.activity){
 		// Add new main_img
@@ -348,18 +337,12 @@ app.post('/upload/editActl', uploadS3Activity, async function(req, res){
 		data.lng = result.location.lng;
 	}
 
-	mysql.con.beginTransaction(async function(err){
-		if(err){return mysql.con.rollback(function(err){errMsg(err);});}
-		await mysql.queryp(`UPDATE data SET ? WHERE actl_id = ?`, [data, data.actl_id]);
-		mysql.con.commit(function(err){
-			if(err){
-				res.json({status: 500, error: "Update activity failed."});
-				return mysql.con.rollback(function(err){errMsg(err);});
-			} else{
-				res.json({status: 200, data: data});
-			}
-		});
+	mysql.queryp("UPDATE data SET ? WHERE actl_id = ?", [data, data.actl_id]).then(function(){
+		res.json({status: 200, data: data});
+	}).catch(function(){
+		res.json({status: 500, error: "Update activity failed."});
 	});
+
 });
 app.post('/upload/profile', uploadS3Profile, async function(req, res){
 	let data = req.body;

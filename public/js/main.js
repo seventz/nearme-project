@@ -463,10 +463,12 @@ function editActivity(actl_id){
         triggerStatusChange();
         switchElementView('#modal-loading', 'none');
         await alertBox("成功編輯活動！");
+        console.log(result)
         getElement(`#held-${actl_id}-title`).innerHTML = result.data.title;
-        getElement(`#held-${actl_id}-time`).innerHTML = timeFormatter(result.data.t_start, 'md', 'hm');
+        getElement(`#held-${actl_id}-time`).innerHTML = result.data.t_start.substring(5);
         switchElementView('#modal-activity-planner', 'none');
     }).catch(async function(result){
+        console.log(result)
         switchElementView('#modal-loading', 'none');
         await alertBox("編輯活動失敗，請稍後再試。");
         switchElementView('#modal-activity-planner', 'none');

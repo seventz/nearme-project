@@ -44,7 +44,7 @@ async function getMeetupRefreshToken(refresh_token) {
         request(options, function(error, response, body){
             let result = JSON.parse(body)
             if(error || !result.access_token){
-                reject("Refresh token error.")
+                reject({status: 500, error: "Refresh token error."})
             }
             else{
                 cst.auth.meetup.access_token = result.access_token;
@@ -75,9 +75,9 @@ function getMeetupTP(){
         resolve(request(options, callback));
     });
     
-
+    // Internal functions //
     async function callback(error, response, body){
-        if(error) throw error;
+        if(error){return error;}
         let result = JSON.parse(body);
         if(!result.events){
             getMeetupRefreshToken(cst.auth.meetup.refresh_token).then(function(new_access_token){
@@ -89,21 +89,12 @@ function getMeetupTP(){
             });
         }else{
             let content = result.events;
-            mysql.con.beginTransaction(async function(err){
-                if(err) {return mysql.con.rollback(function(){throw err;});}
-                let dupIds = await findDupIds(content);
-                insertData(content, 0, dupIds).then(function(){
-                    mysql.con.commit(function(err){
-                        if(err){
-                            return mysql.con.rollback(function(){throw err;});
-                        }else{
-                            return console.log("Update MeetupTP Successfully!");
-                        }
-                    });
-                }).catch(function(err){
-                    mysql.con.rollback(function(){throw err;});
-                });
-            });
+            let dupIds = await findDupIds(content);
+            mysql.txnFunction(insertData, content, 0, dupIds).then(function(){
+                return console.log("Update MeetupTP Successfully!");
+            }).catch(function(err){
+                return console.log(err);
+            })
         }
     }
     
@@ -128,7 +119,7 @@ function getMeetupTP(){
                 insertData(content, count+1, dupIds);
                 console.log(`dupId ${content[count].id} found and call next directly`)
             }else{
-                console.log(`Add new data: ${count}`)
+                console.log(`Add new data: ${count}`);
                 if(content[count].venue){
                     dataPackage.lat = content[count].venue.lat;
                     dataPackage.lng = content[count].venue.lon;
@@ -145,15 +136,15 @@ function getMeetupTP(){
                 dataPackage.actl_id = lib.activityIdGen();
                 dataPackage.title = content[count].name;
                 dataPackage.description = lib.removeEmojis(content[count].description);
-                dataPackage.t_start = new Date(content[count].time);
-                dataPackage.t_end = new Date(content[count].time + content[count].duration);
+                dataPackage.t_start = new Date(content[count].time + content[count].utc_offset);
+                dataPackage.t_end = new Date(content[count].time + content[count].duration + content[count].utc_offset);
                 dataPackage.ref = content[count].link;
                 dataPackage.official_id = content[count].id;
-                dataPackage.created = new Date(content[count].created );
+                dataPackage.created = new Date(content[count].created);
                 (content[count].member_pay_fee===false)? dataPackage.free=true : dataPackage.free=false;
     
                 dao.insert('data', dataPackage).then(function(){
-                    insertData(content, count+1, dupIds);
+                    resolve(insertData(content, count+1, dupIds));
                 }).catch(function(){
                     console.log("Error insertion.");
                     reject();
@@ -189,86 +180,78 @@ function getEventPalTP(){
         let result = JSON.parse(body);
         let content = getEpEventsByLocation(result, city);
 
-        mysql.con.beginTransaction(async function(err){
-            if(err) {return err;}
-            let dupIds = await findDupIds(content);
-            insertData(content, 0, dupIds).then(function(){
-                mysql.con.commit(function(err){
-                    if(err){
-                        return mysql.con.rollback(function(){throw err;});
-                    }else{
-                        return console.log("Update EventPal Successfully!");
-                    }
-                });
-            }).catch(function(err){
-                mysql.con.rollback(function(){throw err;});
-            });
+        let dupIds = await findDupIds(content);
+        mysql.txnFunction(insertData, content, 0, dupIds).then(function(){
+            return console.log("Update EventPal Successfully!");
+        }).catch(function(err){
+            return console.log(err);
         });
-
-        function findDupIds(content){
-            return new Promise(async function(resolve, reject){
-                // Find duplicate ids //
-                let officialIds = content.map(c=>c.data.seqno);
-                let existingIds = await mysql.queryp(`SELECT DISTINCT official_id FROM data WHERE owner = ?`, dataPackage.owner);
-                existingIds = existingIds.map(e=>e.official_id);
-                let dupIds = officialIds.filter(o=>existingIds.includes(o));
-                resolve(dupIds);
-            })
-        }
-
-        function insertData(content, count, dupIds){
-            return new Promise(async function(resolve, reject){
-                if(count===content.length){
-                    console.log("Updated EventPal.")
-                    resolve();
-                }else if(dupIds.includes(content[count].data.seqno)){
-                    // Update inexisting data only //
-                    insertData(content, count+1, dupIds);
-                    console.log(`DupId ${content[count].data.seqno} found and call next directly.`)
-                }else{
-                    console.log(`Add new data: ${count}`)
-                    let address = processAddr(city, content[count].data.location) || null;
-                    dataPackage.actl_id = lib.activityIdGen();
-                    dataPackage.title = content[count].data.activityname || null;
-                    dataPackage.actl_type = content[count].data.gametype || null;
-                    dataPackage.t_start = content[count].activityDateWithT || null;
-                    dataPackage.description = content[count].data.activitybrief || null;
-                    dataPackage.main_img = server + content[count].data.kvimage || null;
-                    dataPackage.ref = server + querystr + content[count].data.seqno || null;
-                    dataPackage.official_id = content[count].data.seqno || null;
-                    dataPackage.created = new Date(content[count].data.createtime) || null;
-
-                    lib.geocodeBuffer(address).then(function(location){
-                        if(!address) dataPackage.address = null;
-                        if(!location.lat) dataPackage.lat = null;
-                        if(!location.lng) dataPackage.lng = null;
-                        dataPackage.lat = location.lat;
-                        dataPackage.lng = location.lng;
-                        dataPackage.address = address;
-    
-                        dao.insert('data', dataPackage).then(function(){
-                            insertData(content, count+1, dupIds);
-                        }).catch(function(){
-                            console.log("Error insertion.");
-                            reject();
-                        });
-                    }).catch(function(err){
-                        console.log(err);
-                        // Proceeding to the next
-                        insertData(content, count+1, dupIds);
-                    })
-                }
-            });
-        }
-        function getEpEventsByLocation(result, city){
-            let arr = [];
-            result.forEach(function(r){
-                if(r.data.city.trim() === city)
-                    arr.push(r);
-            })
-            return arr;
-        }
     });
+
+    // Internal functions //
+    function findDupIds(content){
+        return new Promise(async function(resolve, reject){
+            // Find duplicate ids //
+            let officialIds = content.map(c=>c.data.seqno);
+            let existingIds = await mysql.queryp(`SELECT DISTINCT official_id FROM data WHERE owner = ?`, dataPackage.owner);
+            existingIds = existingIds.map(e=>e.official_id);
+            let dupIds = officialIds.filter(o=>existingIds.includes(o));
+            resolve(dupIds);
+        })
+    }
+
+    function insertData(content, count, dupIds){
+        return new Promise(async function(resolve, reject){
+            if(count===content.length){
+                console.log("Updated EventPal.")
+                resolve();
+            }else if(dupIds.includes(content[count].data.seqno)){
+                // Update inexisting data only //
+                insertData(content, count+1, dupIds);
+                console.log(`DupId ${content[count].data.seqno} found and call next directly.`)
+            }else{
+                console.log(`Add new data: ${count}`)
+                let address = processAddr(city, content[count].data.location) || null;
+                dataPackage.actl_id = lib.activityIdGen();
+                dataPackage.title = content[count].data.activityname || null;
+                dataPackage.actl_type = content[count].data.gametype || null;
+                dataPackage.t_start = content[count].activityDateWithT || null;
+                dataPackage.description = content[count].data.activitybrief || null;
+                dataPackage.main_img = server + content[count].data.kvimage || null;
+                dataPackage.ref = server + querystr + content[count].data.seqno || null;
+                dataPackage.official_id = content[count].data.seqno || null;
+                dataPackage.created = new Date(content[count].data.createtime) || null;
+
+                lib.geocodeBuffer(address).then(function(location){
+                    if(!address) dataPackage.address = null;
+                    if(!location.lat) dataPackage.lat = null;
+                    if(!location.lng) dataPackage.lng = null;
+                    dataPackage.lat = location.lat;
+                    dataPackage.lng = location.lng;
+                    dataPackage.address = address;
+
+                    dao.insert('data', dataPackage).then(function(){
+                        insertData(content, count+1, dupIds);
+                    }).catch(function(){
+                        console.log("Error insertion.");
+                        reject();
+                    });
+                }).catch(function(err){
+                    console.log(err);
+                    // Proceeding to the next
+                    insertData(content, count+1, dupIds);
+                })
+            }
+        });
+    }
+    function getEpEventsByLocation(result, city){
+        let arr = [];
+        result.forEach(function(r){
+            if(r.data.city.trim() === city)
+                arr.push(r);
+        })
+        return arr;
+    }
 }
 
 async function getAccupassTP(){
@@ -290,22 +273,13 @@ async function getAccupassTP(){
     
     await getIdsByChannel(channelObj, 0);
     let dupIds = await findDupIds(channelObj);
+    mysql.txnFunction(insertData, channelObj, 0, dupIds).then(function(){
+        return console.log("Update Accupass Successfully!");
+    }).catch(function(err){
+        return console.log(err);
+    })
 
-    mysql.con.beginTransaction(async function(err){
-        if(err) {return err;}
-        insertData(channelObj, 0, dupIds).then(function(){
-            mysql.con.commit(function(err){
-                if(err){
-                    return mysql.con.rollback(function(){throw err;});
-                }else{
-                    return console.log("Update Accupass Successfully!");
-                }
-            });
-        }).catch(function(err){
-            mysql.con.rollback(function(){throw err;});
-        });
-    });
-
+    // Internal functions //
     function insertData(channelObj, index, dupIds){
         return new Promise(function(resolve, reject){
             if(index===channelObj.length){

@@ -30,7 +30,7 @@ const params = {
         lat: 25.04,
         lon: 121.54,
         radius: 10,
-        page: 100
+        page: 55
     }
 }
 

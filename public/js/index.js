@@ -875,30 +875,30 @@ function renderPages(info){
             renderMainViewByPage(query, currentPage-1);
         });
     }else{
-        pagePrev.classList.add('page-disabled');
+        pagePrev.classList.add('disabled');
     }
     if(currentPage != lastPage){
         pageNext.addEventListener('click', function(){
             renderMainViewByPage(query, currentPage+1);
         });
     }else{
-        pageNext.classList.add('page-disabled');
+        pageNext.classList.add('disabled');
     }
     if(currentPage/currentPageCount > 1){
         pagePrevAll.addEventListener('click', function(){
             renderMainViewByPage(query, currentPage-pageCount);
         });
     }else{
-        pagePrevAll.classList.add('page-disabled');
+        pagePrevAll.classList.add('disabled');
     }
     if(currentPageTab < pageTabs){
         pageNextAll.addEventListener('click', function(){
             renderMainViewByPage(query, currentPage+pageCount);
         });
     }else{
-        pageNextAll.classList.add('page-disabled');
+        pageNextAll.classList.add('disabled');
     }
-    getElement(`#page-${currentPage}`).classList.add('page-disabled')
+    getElement(`#page-${currentPage}`).classList.add('disabled')
 }
 function renderMainViewByPage(query, page){
     query.paging = page-1;

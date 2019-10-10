@@ -15,10 +15,12 @@ const transactionFunction = function(callback, ...args){
     return new Promise(function(resolve, reject){
         mysqlPool.getConnection(function(err, conn){
             conn.beginTransaction(function(err){
-                if(err){conn.rollback(function(){
-                    reject({status: 500, error: 'Transaction connection error.'});
-                    conn.release();
-                })}else{
+                if(err){
+                    conn.rollback(function(){
+                        reject({status: 500, error: 'Transaction connection error.'});
+                        conn.release();
+                    });
+                }else{
                     callback(...args).then(function(results){
                         conn.commit(function(err){
                             if(err){conn.rollback(function(){
@@ -44,10 +46,12 @@ const transactionQueriesPromise = function(queryArr){
     return new Promise(function(resolve, reject){
         mysqlPool.getConnection(async function(err, conn){
             conn.beginTransaction(function(err){
-                if(err){conn.rollback(function(){
-                    reject({status: 500, error: 'Transaction connection error.'});
-                    conn.release();
-                })}else{
+                if(err){
+                    conn.rollback(function(){
+                        reject({status: 500, error: 'Transaction connection error.'});
+                        conn.release();
+                    })
+                }else{
                     processingQuery(queryArr, 0).then(function(){
                         conn.commit(function(err){
                             if(err){conn.rollback(function(){
@@ -85,10 +89,12 @@ const transactionQueryPromise = function(query, params){
     return new Promise(function(resolve, reject){
         mysqlPool.getConnection(function(err, conn){
             conn.beginTransaction(function(err){
-                if(err){conn.rollback(function(){
-                    reject({status: 500, error: 'Transaction connection error.'});
-                    conn.release();
-                })}else{
+                if(err){
+                    conn.rollback(function(){
+                        reject({status: 500, error: 'Transaction connection error.'});
+                        conn.release();
+                    })
+                }else{
                     conn.query(query, params, function(error, results){
                         if(error){
                             reject({status: 500, error: 'Database query error.'});

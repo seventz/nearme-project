@@ -41,6 +41,7 @@ const misc = {
     keywordCount: 1,
     statusChange: false,
     user: {},
+    idToken: '',
     enterListener: null
 }
 function getElement(selector){

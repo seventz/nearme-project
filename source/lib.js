@@ -66,6 +66,25 @@ function reverseGeocodeBuffer(lat, lng){
     });
 }
 
+function processingLocation(address, lat, lng){
+	return new Promise(function(resolve, reject){
+		if(address==='null'){
+			// Reverse geocoding //
+			reverseGeocodeBuffer(lat, lng).then(function(address){
+				resolve({address: address});
+			}).catch(err=>console.log(err));
+		}else if(lat==='null' && lng==='null'){
+			// Geocoding // 
+			geocodeBuffer(address).then(function(location){
+				resolve({location: {
+					lat: location.lat,
+					lng: location.lng
+				}});
+			}).catch(err=>console.log(err));
+		}
+	})
+}
+
 module.exports={
     removeEmojis: removeEmojis,
     activityIdGen: activityIdGen,

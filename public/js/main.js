@@ -169,30 +169,91 @@ function getType(cat){
 }
 function getActivityData(mode, prop){
     let queryArr = [], query = '';
+    let options = {headers: {'id_token': localStorage.getItem('id_token')}};
     if(mode==='all'){
         if(typeof prop === "string"){
             query = prop;
         }else{
-            for(let name in prop){
-                queryArr.push(`${name}=${prop[name]}`);
-            }
+            for(let name in prop){queryArr.push(`${name}=${prop[name]}`);}
             query = `/filter/${mode}?${queryArr.join('&')}`;
         }
         misc.lastSearch = query; // => Store the last search query
     }else if(mode==='id'){
         query = `/filter/${mode}?actl_id=${prop}`;
     }
-    return fetch(query).then(r=>r.json());
+    return fetch(query, options).then(r=>r.json());
 }
 function getUserActivities(ids){
     return fetch(`/user/activity?actl_id=${ids}`).then(r=>r.json());
 }
-///////// testing 
 function getActivityDetail(id){
     return fetch(`/get/activity/?actl_id=${id}`).then(r=>r.json());
 }
-/////////
+// -- Search -- //
+function realtimeSearch(){
+    let words = getElement('#search-main').value;
+    let list = getElement('#search-main-items');
 
+    if(words.length===0){return removeChildOf('#search-main-items');}
+    // Not include bopomofo
+    let newWords = words.replace(/[\u3100-\u312F]/g, '');
+    newWords = newWords.replace(/([\"\'\&\@\#\$\%\^\/\,\!\\\^\$\{\}\[\]\(\)\.\*\+\?\|\<\>\-\&])/g, "");
+    if(words.length === newWords.length){
+        let options = {
+            method: "GET",
+            headers: {id_token: localStorage.getItem('id_token')}
+        }
+        fetch(`/search/title/realtime?words=${newWords}`, options)
+            .then(function(response){
+                return response.json();
+            }).then(function(result){
+                removeChildOf('#search-main-items');
+                result.forEach(function(r){
+                    createElement('DIV', {atrs:{
+                        id: `search-${r.actl_id}`,
+                        textContent: r.title
+                    }}, list);
+                    getElement(`#search-${r.actl_id}`).addEventListener('mouseover', function(){
+                        getElement('#search-main').value = this.textContent;
+                        misc.searchActivityId = r.actl_id;
+                    });
+                });
+            });
+    }
+    addClickResetListener('#search-main-items');
+}
+function keywordSearch(){
+    let words = getElement('#search-main').value;
+    let searchList = getElement('#search-main-items');
+    if(words.length===0){return removeChildOf('#search-main-items');}
+
+    let fragments = words.replace(/([\"\ \'\&\@\#\$\%\^\/\,\!\\\^\$\{\}\[\]\(\)\.\*\+\?\|\<\>\-\&])/g, ",");
+    let fragmentsLength = fragments.split(',').length;
+    if(fragmentsLength!=misc.keywordCount){
+        // record current keyword counts
+        misc.keywordCount = fragmentsLength;
+        let options = {
+            method: "GET",
+            headers: {id_token: localStorage.getItem('id_token')}
+        }
+        fetch(`/search/title/keywords?words=${fragments}`, options).then(function(response){
+            return response.json();
+        }).then(function(result){
+            removeChildOf('#search-main-items');
+            result.forEach(function(r){
+                createElement('DIV', {atrs:{
+                    id: `search-${r.actl_id}`,
+                    textContent: r.title
+                }}, searchList);
+                getElement(`#search-${r.actl_id}`).addEventListener('mouseover', function(){
+                    getElement('#search-main').value = this.textContent;
+                    misc.searchActivityId = r.actl_id;
+                });
+            })
+        })
+    }
+    addClickResetListener('#search-main-items');
+}
 // -- Activity -- //
 function generateActivityPlanner(){
     let container = getElement('.activity-planner-container');

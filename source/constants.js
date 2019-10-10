@@ -56,6 +56,10 @@ const auth = {
         password: process.env.MYSQL_PASSWORD,
         database: process.env.MYSQL_DB
     },
+    redis:{
+        host: process.env.REDIS_HOST,
+        port: process.env.REDIS_PORT
+    },
     admin: {
         pwsecret: process.env.PW_SECRET,
         port: process.env.PORT

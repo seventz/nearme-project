@@ -1,24 +1,21 @@
 // -- Initialize -- //
 function init(){
-    // document.getElementById('loading').style.display = 'none';
-    initUrl();
     initListeners();
     loadMap();
     initPage();
     window.fbAsyncInit = fbInit;
-    
-    window.onpopstate = function(event){
-        console.log(event.state)
-        console.log("history changed to: " + document.location.href);
-    }
 }
 if(document.readyState !== "loading"){init();}
 else{document.addEventListener("DOMContentLoaded", init);}
 // -- Main -- //
 function initPage(){
+    initUserStatus();
+    initMain();
+}
+function initMain(){
+    initUrl();
     initVisitedStatus();
     initFilters();
-    initProfileIcon();
     initMap();
     switchSearchMode();
 }
@@ -34,10 +31,12 @@ function initVisitedStatus(){
         localStorage.setItem('visited', (new Date).setTime((new Date).getTime()+1000*60*60))
     }else{
         switchElementView('.main', 'contents');
-        renderMainView('all', getFilters());
     }
 }
-
+// Set up user id token for search cache identification // 
+function setUserIdToken(user_id){
+    localStorage.setItem('id_token', user_id ? user_id : `guest_${randomNoGen(10000)}`);
+}
 // -- Utils -- //
 function closeActivityPlanner(){
     switchElementView('#modal-activity-planner', 'none');
@@ -184,13 +183,16 @@ function initListeners(){
         showWatchList(misc.currentTab);
     });
 }
-function initProfileIcon(){
+function initUserStatus(){
     requestUserData().then(function(result){
         setUserData(result);
         switchProfileIcon('show');
+        renderMainView('all', getFilters());
     }).catch(function(){
+        setUserIdToken();
         removeUserData();
         switchProfileIcon('hide');
+        renderMainView('all', getFilters());
     });
 }
 function initFilters(){
@@ -1098,62 +1100,6 @@ function autoCompleteType(event){
     addKeydownResetListener('#activity-planner-type');
     addClickResetListener('#activity-planner-type');
 }
-function realtimeSearch(){
-    let words = getElement('#search-main').value;
-    let list = getElement('#search-main-items');
-
-    if(words.length===0){return removeChildOf('#search-main-items');}
-    // Not include bopomofo
-    let newWords = words.replace(/[\u3100-\u312F]/g, '');
-    newWords = newWords.replace(/([\"\'\&\@\#\$\%\^\/\,\!\\\^\$\{\}\[\]\(\)\.\*\+\?\|\<\>\-\&])/g, "");
-    if(words.length === newWords.length){
-        fetch(`/search/title/realtime?words=${newWords}`).then(function(response){
-            return response.json();
-        }).then(function(result){
-            removeChildOf('#search-main-items');
-            result.forEach(function(r){
-                createElement('DIV', {atrs:{
-                    id: `search-${r.actl_id}`,
-                    textContent: r.title
-                }}, list);
-                getElement(`#search-${r.actl_id}`).addEventListener('mouseover', function(){
-                    getElement('#search-main').value = this.textContent;
-                    misc.searchActivityId = r.actl_id;
-                });
-            })
-        })
-    }
-    addClickResetListener('#search-main-items');
-}
-function keywordSearch(){
-    let words = getElement('#search-main').value;
-    let searchList = getElement('#search-main-items');
-    if(words.length===0){return removeChildOf('#search-main-items');}
-
-    let fragments = words.replace(/([\"\ \'\&\@\#\$\%\^\/\,\!\\\^\$\{\}\[\]\(\)\.\*\+\?\|\<\>\-\&])/g, ",");
-    let fragmentsLength = fragments.split(',').length;
-    if(fragmentsLength!=misc.keywordCount){
-        // record current keyword counts
-        misc.keywordCount = fragmentsLength;
-        fetch(`/search/title/keywords?words=${fragments}`).then(function(response){
-            return response.json();
-        }).then(function(result){
-            removeChildOf('#search-main-items');
-            result.forEach(function(r){
-                createElement('DIV', {atrs:{
-                    id: `search-${r.actl_id}`,
-                    textContent: r.title
-                }}, searchList);
-                getElement(`#search-${r.actl_id}`).addEventListener('mouseover', function(){
-                    getElement('#search-main').value = this.textContent;
-                    misc.searchActivityId = r.actl_id;
-                    console.log(r.actl_id);
-                });
-            })
-        })
-    }
-    addClickResetListener('#search-main-items');
-}
 
 // -- User -- //
 function showSignInForm(){
@@ -1296,6 +1242,8 @@ function setUserData(result){
         data: result.data,
         preference: result.preference
     }
+    // Set user id token for search cache
+    setUserIdToken(result.data.user_id);
     localStorage.setItem('access_token', result.data.access_token);
     localStorage.setItem('provider', result.data.provider);
     let userPref = {liked: [], joined: [], held:[]};
@@ -1307,6 +1255,7 @@ function setUserData(result){
     localStorage.setItem("preference", JSON.stringify(userPref));
 }
 function removeUserData(){
+    misc.user = {};
     localStorage.removeItem('access_token');
     localStorage.removeItem('provider');
     localStorage.removeItem('preference');

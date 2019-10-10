@@ -7,12 +7,14 @@ const cron = require('node-cron');
 const crypto = require('crypto');
 const aws = require('aws-sdk');
 const multerS3 = require('multer-s3');
+const Redis = require('ioredis');
 
 // Constants and Library
 const cst = require('./source/constants');
 const lib = require('./source/lib');
 const dao = require('./source/dao');
 const mysql = require("./source/mysqlcon");
+const dataCrawler = require("./source/dataCrawler");
 
 // aws S3 Configuration
 aws.config.update({
@@ -21,13 +23,16 @@ aws.config.update({
 });
 const s3 = new aws.S3();
  
+// Redis
+const redis = new Redis({
+	host: cst.auth.redis.host, 
+	port: cst.auth.redis.port
+})
+
 const app = express();
 app.use(bodyparser.json());
 app.use(bodyparser.urlencoded({extended:true}));
 app.use(express.static("public"));
-
-// Data Crawler Initializer
-const dataCrawler = require("./source/dataCrawler");
 
 // -- node-cron scheduler -- //
 cron.schedule(`53 8 */${cst.crawler.update.DAY_INTEVAL} * *`, function(){
@@ -46,79 +51,24 @@ cron.schedule(`53 6 */${cst.crawler.update.DAY_INTEVAL} * *`, function(){
 app.get('/', function(req, res){
 	res.sendFile(path.join(__dirname + "/index.html"));
 });
-// Turn to Cache in the future
-let lastSearchedTitle = [];
-let lastSearch = [];
-let lastParams = '';
-app.get('/filter/:mode', async function(req, res){
+
+app.get('/filter/:mode', getFromCache, async function(req, res){
 	let {mode} = req.params;
-	let {cat, type, owner, dist, center, listing, paging} = req.query;
-	let {user_id, actl_id} = req.query;
-
-	let timeNow = lib.getLocalISOTime();
-
-	paging = paging ? parseInt(paging) : 0;
-	listing = listing ? parseInt(listing) : 12;
-	
-	let currentParams = req.query;
-
-	//// TODO: Move the whole Cache to a middleware
-	// Get [cat, center, dist, type, owner] as mainFilters
-	// Logic: if only [paging, listing] different, get data from pseudo Cache
-	let currentMainFilters = Object.values(currentParams).splice(0, 5).join(',');
-	let lastMainFilters = Object.values(lastParams).splice(0, 5).join(',');
-    
-	if(currentMainFilters === lastMainFilters){
-		console.log('Get data from memory.')
-		let result = lastSearch.slice(paging*listing, (paging+1)*listing);
-		
-		return res.json({data: result, info:{
-			entries: lastSearch.length,
-			listing: listing,
-			paging: paging,
-			pageCount: cst.admin.PAGE_COUNT,
-			query: req.query}});
-	}
-
+	let {center, dist, cat, owner, type, listing, paging} = req.query;
+	let {actl_id} = req.query;
+	let {id_token} = req.headers;
 
 	console.log("Query new data.");
-	let filterSQL = '';
-	let subSQLs = [];
+	let result;
 	if(mode==='id'){
-		subSQLs.push(`actl_id = '${actl_id}'`);
+		result = await dao.getDataById(actl_id);
 	}else{
-		let bounds = {t: null, b: null, r: null, l: null};
-		subSQLs.push(`t_start > '${timeNow}'`);
-		if(cat){subSQLs.push(`category = '${cat}'`);}
-		if(type){subSQLs.push(`actl_type = '${type}'`);}
-		if(owner){subSQLs.push(`owner = '${owner}'`)}
-	
-		if(user_id){subSQLs.push(`owner = '${user_id}'`)};
-	
-		// This should be the last because SQL contains "order by"
-		if(dist && center){
-			center = {
-				lat: parseFloat(req.query.center.split(',')[0]),
-				lng: parseFloat(req.query.center.split(',')[1])
-			}
-			dist = parseInt(dist);
-			bounds.t = center.lat + (dist / cst.algo.LAT_TO_M_PER_DEG);
-			bounds.b = center.lat - (dist / cst.algo.LAT_TO_M_PER_DEG);
-			bounds.r = center.lng + (dist / cst.algo.LNG_TO_M_PER_DEG);
-			bounds.l = center.lng - (dist / cst.algo.LNG_TO_M_PER_DEG);
-			subSQLs.push(`(lat > ${bounds.b} AND lat < ${bounds.t} AND lng > ${bounds.l} AND lng < ${bounds.r}) ORDER BY (POW((lat-${center.lat}),2) + POW((lng-${center.lng}),2))`);
-		}
+		result = await dao.getData(req.query);
 	}
 	
-	if(subSQLs.length>0){filterSQL = `WHERE ${subSQLs.join(' AND ')}`;}
-	
-	let query = `SELECT * FROM data ${filterSQL}`;
-
-	let result = await mysql.queryp(query, null, errMsg);
 	// Send limited data to front-end
-	let listingResult = result.slice(paging*listing, (paging+1)*listing);
 	res.json({
-		data: listingResult,
+		data: result.slice(paging*listing, (paging+1)*listing),
 		info:{
 			entries: result.length,
 			listing: listing,
@@ -128,36 +78,28 @@ app.get('/filter/:mode', async function(req, res){
 		}});
 
 
-	// Store last searched data in pseudo Cache
-	lastSearch = result;
-	lastSearchedTitle = result.map(function(r){
+	// Update new search information into cache
+	redis.set(`${id_token}:lastResult`, JSON.stringify(result), "EX", 600);
+	let lastTitle = result.map(function(r){
 		return {
 			actl_id: r.actl_id,
 			title: r.title
 		}
 	});
-	////////
-
-	// Update last search
-	lastParams = currentParams;	
+	redis.set(`${id_token}:lastTitle`, JSON.stringify(lastTitle), "EX", 600);
+	redis.set(`${id_token}:lastFilter`, `${center},${dist},${cat},${owner},${type}`, "EX", 600);
 });
-function sortByDist(data, center){
-	return data.map(function(d){
-		d.dist = Math.sqrt(Math.pow(d.lat-center.lat, 2)+Math.pow(d.lng-center.lng, 2));
-		// d.dist = Math.abs(d.lat-center.lat)+Math.abs(d.lng-center.lng);
-		return d;
-	}).sort(function(a, b){
-		return a.dist - b.dist;
-	});
-}
 
-let lastKeyHead = '';
-let filterL1 = '';
-app.get('/search/title/:mode', function(req, res){
+app.get('/search/title/:mode', async function(req, res){
 	let {mode} = req.params;
 	let {words} = req.query;
-	
+	let {id_token} = req.headers;
 	if(words.length === 0){return res.json();}
+
+	// Get last searched data from cache
+	let lastSearch = await redis.get(`${id_token}:lastTitle`).then(r=>JSON.parse(r));
+	let filterL1 = await redis.get(`${id_token}:lastTitle:filterL1`).then(r=>JSON.parse(r));
+	let lastKeyHead = await redis.get(`${id_token}:lastTitle:lastKeyHead`);
 
 	if(mode==='realtime'){
 		words = words.toLowerCase();
@@ -169,7 +111,8 @@ app.get('/search/title/:mode', function(req, res){
 		// keyword > 1 // search from last searched
 		// keyword n => 0 // reset
 		if(keyHead!=lastKeyHead){
-			filterL1 = lastSearchedTitle.filter(s=>s.title.toLowerCase().includes(keyHead));
+			filterL1 = lastSearch.filter(s=>s.title.toLowerCase().includes(keyHead));
+			await redis.set(`${id_token}:lastTitle:filterL1`, JSON.stringify(filterL1));
 			res.json(filterL1);
 		}else{
 			if(keyTails.length===0){
@@ -179,28 +122,24 @@ app.get('/search/title/:mode', function(req, res){
 				keyTails.forEach(function(kt){
 					filterL2 = filterL2.filter(f2=>f2.title.toLowerCase().includes(kt))
 				});
-				res.json(filterL2)
+				res.json(filterL2);
 			}
 		}
-		
-		lastKeyHead = keyHead; // Record the 1st word on last search
+		redis.set(`${id_token}:lastTitle:lastKeyHead`, keyHead);
+		// lastKeyHead = keyHead; // Record the 1st word on last search
 	}else if(mode==="keywords"){
 		// Logic: compare all keyword fragments
 		let splitWords = words.toLowerCase().split(',');
 		let fragments = splitWords.filter(s=>s!='');
 		let fitFragments = [];
 		fragments.forEach(function(fr){
-			let arr = lastSearchedTitle.filter(s=>s.title.toLowerCase().includes(fr))
+			let arr = lastSearch.filter(s=>s.title.toLowerCase().includes(fr))
 			fitFragments.push(...arr);
 		});
 		res.json(fitFragments);
 	}
 });
-app.get('/get/user/icon', async function(req, res){
-	let {user_id} = req.query;
-	let icon = await mysql.queryp(`SELECT icon FROM user WHERE user_id = ?`, user_id);
-	res.json(icon);
-});
+
 app.get('/get/activity', function(req, res){
 	let {actl_id} = req.query;
 	let promContent = mysql.queryp(`SELECT * FROM data WHERE actl_id = ?`, actl_id, errMsg);
@@ -284,7 +223,7 @@ app.post('/upload/addActl', uploadS3Activity, async function(req, res){
 	data.main_img = req.files.activity ? `${cst.admin.S3_BUCKET}${req.files.activity[0].key}` : null;
 
 	// -- Processing location information -- //
-	let result = await processingLocation(data.address, data.lat, data.lng);
+	let result = await lib.processingLocation(data.address, data.lat, data.lng);
 	if(result.address){data.address = result.address}
 	if(result.location){
 		data.lat = result.location.lat;
@@ -330,7 +269,7 @@ app.post('/upload/editActl', uploadS3Activity, async function(req, res){
 		}
 	}
 
-	let result = await processingLocation(data.address, data.lat, data.lng);
+	let result = await lib.processingLocation(data.address, data.lat, data.lng);
 	if(result.address){data.address = result.address}
 	if(result.location){
 		data.lat = result.location.lat;
@@ -577,6 +516,52 @@ app.post('/user/update/profile', bearerToken, getUserData, function(req, res){
 	
 });
 
+async function getFromCache(req, res, next){
+	let {mode} = req.params;
+	let {actl_id} = req.query;
+	let {center, dist, cat, owner, type, listing, paging} = req.query;
+	let {id_token} = req.headers;
+
+	paging = paging ? parseInt(paging) : 0;
+	listing = listing ? parseInt(listing) : 12;
+	req.query.paging = paging;
+	req.query.lising = listing;
+	if(mode==='id'){
+		let lastResult = await redis.get(`${id_token}:lastResult`).then(r=>JSON.parse(r));
+		let data = lastResult.filter(r=>r.actl_id===actl_id);
+		if(data.length===1){
+			console.log('Get data from memory.');
+			return res.json({
+				data: data, 
+				info:{
+					entries: data.length,
+					listing: listing,
+					paging: paging,
+					pageCount: cst.admin.PAGE_COUNT,
+					query: req.query
+				}});
+		}
+		next();
+	}else{
+		let filter = `${center},${dist},${cat},${owner},${type}`;
+		let lastFilter = await redis.get(`${id_token}:lastFilter`);
+		if(filter===lastFilter){
+			console.log('Get data from memory.');
+			let lastResult = await redis.get(`${id_token}:lastResult`).then(r=>JSON.parse(r));
+			return res.json({
+				data: lastResult.slice(paging*listing, (paging+1)*listing), 
+				info:{
+					entries: lastResult.length,
+					listing: listing,
+					paging: paging,
+					pageCount: cst.admin.PAGE_COUNT,
+					query: req.query
+				}});
+		}
+		next();
+	}
+}
+
 function bearerToken(req, res, next){
 	const bearerHeader = req.headers['authorization'];
 	if(typeof bearerHeader==='undefined'){
@@ -599,24 +584,7 @@ function getUserData(req, res, next){
 	});
 }
 
-function processingLocation(address, lat, lng){
-	return new Promise(function(resolve, reject){
-		if(address==='null'){
-			// Reverse geocoding //
-			lib.reverseGeocodeBuffer(lat, lng).then(function(address){
-				resolve({address: address});
-			}).catch(err=>console.log(err));
-		}else if(lat==='null' && lng==='null'){
-			// Geocoding // 
-			lib.geocodeBuffer(address).then(function(location){
-				resolve({location: {
-					lat: location.lat,
-					lng: location.lng
-				}});
-			}).catch(err=>console.log(err));
-		}
-	})
-}
+
 
 function errMsg(err){
     console.log(err);

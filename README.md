@@ -7,10 +7,8 @@ A website integrated with events nearby with universal filters and interactive m
 ## Key Features
 - **Switch View Mode**: Map view and Event view
     ![img](https://media.giphy.com/media/d88Z0WKCSh5R85zbC4/giphy.gif)
-    </br>
 - **Filters** Choose by distance、type and location
     ![img](https://media.giphy.com/media/L2es5kF45TsBRlZUuH/giphy.gif)
-    </br>
 - **Search Function**: Support Keyword and real-time search 
     ![img](https://media.giphy.com/media/cJ4XtwbtLQAzwNaJbX/giphy.gif)
 

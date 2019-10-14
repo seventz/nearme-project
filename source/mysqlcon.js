@@ -3,11 +3,11 @@ const mysql = require("mysql");
 const cst = require('./constants');
 
 const mysqlPool = mysql.createPool({
-    connectionLimit: cst.auth.mysql.connlimit,
-    host: cst.auth.mysql.host,
-    user: cst.auth.mysql.user,
-    password: cst.auth.mysql.password,
-    database: cst.auth.mysql.database,
+    connectionLimit: cst.auth.mysql.CONNLIMIT,
+    host: cst.auth.mysql.HOST,
+    user: cst.auth.mysql.USER,
+    password: cst.auth.mysql.PASSWORD,
+    database: cst.auth.mysql.DATABASE,
     timezone: 'Z'
 });
 

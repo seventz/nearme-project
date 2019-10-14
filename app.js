@@ -18,15 +18,15 @@ const dataCrawler = require("./source/dataCrawler");
 
 // aws S3 Configuration
 aws.config.update({
-	accessKeyId: cst.auth.aws.accessKeyId,
-	secretAccessKey: cst.auth.aws.secretAccessKey
+	accessKeyId: cst.auth.aws.ACCESS_KEY_ID,
+	secretAccessKey: cst.auth.aws.SECRET_ACCESS_KEY
 });
 const s3 = new aws.S3();
  
 // Redis
 const redis = new Redis({
-	host: cst.auth.redis.host, 
-	port: cst.auth.redis.port
+	host: cst.auth.redis.HOST, 
+	port: cst.auth.redis.PORT
 })
 
 const app = express();
@@ -58,7 +58,6 @@ app.get('/filter/:mode', getFromCache, async function(req, res){
 	let {actl_id} = req.query;
 	let {id_token} = req.headers;
 
-	console.log("Query new data.");
 	let result;
 	if(mode==='id'){
 		result = await dao.getData({actl_id: actl_id});
@@ -79,6 +78,7 @@ app.get('/filter/:mode', getFromCache, async function(req, res){
 	// Send limited data to front-end
 	res.json({
 		status: 200,
+		source: 'database',
 		data: result.slice(paging*listing, (paging+1)*listing),
 		info:{
 			entries: result.length,
@@ -112,7 +112,7 @@ app.get('/search/title/:mode', async function(req, res){
 		 */
 		if(keyHead!=lastKeyHead){
 			filterL1 = lastSearch.filter(s=>s.title.toLowerCase().includes(keyHead));
-			await redis.set(`${id_token}:lastTitle:filterL1`, JSON.stringify(filterL1));
+			await redis.set(`${id_token}:lastTitle:filterL1`, JSON.stringify(filterL1), "EX", 600);
 			res.json(filterL1);
 		}else{
 			if(keyTails.length===0){
@@ -126,7 +126,7 @@ app.get('/search/title/:mode', async function(req, res){
 			}
 		}
 		// Record the 1st word on last search
-		redis.set(`${id_token}:lastTitle:lastKeyHead`, keyHead);
+		redis.set(`${id_token}:lastTitle:lastKeyHead`, keyHead, "EX", 600);
 	}else if(mode==="keywords"){
 		/**
 		 * Logic: compare all keyword fragments
@@ -285,17 +285,17 @@ app.post('/upload/profile', uploadS3Profile, async function(req, res){
 
 app.post('/user/signin', async function(req, res){
 	let {provider, email, password} = req.body;
-	let access_expired = Date.now() + (cst.admin.TOKEN_EXPIRED_IN_SEC * 1000);
-	let access_token = crypto.createHash('sha256').update(Date.now().toString()).digest('hex');
 	let data = {};
 	if(provider!='native' && provider!='facebook'){
 		res.json({status: 400, error:"Invalid provider."});
 	}
 	if(provider === 'native'){
+		let access_expired = Date.now() + (cst.admin.TOKEN_EXPIRED_IN_SEC * 1000);
+		let access_token = crypto.createHash('sha256').update(Date.now().toString()).digest('hex');
 		let user = await dao.getUserData({
 			provider: provider,
 			email: email,
-			password: crypto.createHmac('sha256', password+cst.auth.admin.pwsecret).digest('hex')
+			password: crypto.createHmac('sha256', password+cst.auth.admin.PW_SECRET).digest('hex')
 		});
 		if(user.length!=1){
 			return res.json({status: 401, erorr: "Invalid email or password."});
@@ -366,7 +366,7 @@ app.post('/user/signup', async function(req, res){
 	}
 	let access_expired = Date.now() + (cst.admin.TOKEN_EXPIRED_IN_SEC * 1000);
 	let access_token = crypto.createHash('sha256').update(Date.now().toString()).digest('hex');
-	let encrPwd = crypto.createHmac('sha256', req.body.password+cst.auth.admin.pwsecret).digest('hex');
+	let encrPwd = crypto.createHmac('sha256', req.body.password+cst.auth.admin.PW_SECRET).digest('hex');
 
 	let data = {
 		id: null,
@@ -507,9 +507,9 @@ async function getFromCache(req, res, next){
 		if(!lastResult){return next();}
 		let data = lastResult.filter(r=>r.actl_id===actl_id);
 		if(data.length!=1){return next();}
-		console.log('Get data from memory.');
 		return res.json({
 			status: 200,
+			source: 'cache',
 			data: data, 
 			info:{
 				entries: data.length,
@@ -522,11 +522,11 @@ async function getFromCache(req, res, next){
 		let filter = `${center},${dist},${cat},${owner},${type}`;
 		let lastFilter = await redis.get(`${id_token}:lastFilter`);
 		if(filter!=lastFilter){return next();}
-		console.log('Get data from memory.');
 		let lastResult = await redis.get(`${id_token}:lastResult`).then(r=>JSON.parse(r));
 		if(!lastResult){return next();}
 		return res.json({
 			status: 200,
+			source: 'cache',
 			data: lastResult.slice(paging*listing, (paging+1)*listing), 
 			info:{
 				entries: lastResult.length,
@@ -556,12 +556,8 @@ function bearerToken(req, res, next){
 	next();
 }
 
-function errMsg(err){
-    console.log(err);
-}
-
-app.listen(cst.auth.admin.port, () => {
-	console.log(`My application is running on port ${cst.auth.admin.port}!`)
+app.listen(cst.auth.admin.PORT, () => {
+	console.log(`My application is running on port ${cst.auth.admin.PORT}!`)
 });
 
 module.exports=app;

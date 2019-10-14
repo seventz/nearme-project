@@ -27,8 +27,8 @@ let dataPackage = {
 async function getMeetupRefreshToken(refresh_token) {
     return new Promise(function(resolve, reject){
         let formData = {
-            client_id: cst.auth.meetup.client_id,
-            client_secret: cst.auth.meetup.client_secret,
+            client_id: cst.auth.meetup.CLIENT_ID,
+            client_secret: cst.auth.meetup.CLIENT_SECRET,
             grant_type: 'refresh_token',
             refresh_token: refresh_token
         }
@@ -69,7 +69,7 @@ function getMeetupTP(){
             headers: {
             'Authorization': `Bearer ${cst.auth.meetup.access_token}`
             },
-            qs: cst.params.meetup
+            qs: cst.crawler.params.meetup
         };
 
         resolve(request(options, callback));

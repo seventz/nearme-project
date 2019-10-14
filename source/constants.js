@@ -17,52 +17,51 @@ const admin = {
 }
 
 // -- Crawler settings -- //
+// (Meetup: radius in mile, page = counts in one page)
 const crawler = {
     update:{
         DAY_INTEVAL: 1
     },
-    UTC_OFFSET_IN_MS: -28800000
-}
-
-// Parameters (Meetup: radius in mile, page = counts in one page)
-const params = {
-    meetup:{
-        lat: 25.04,
-        lon: 121.54,
-        radius: 10,
-        page: 55
+    params:{
+        meetup:{
+            lat: 25.04,
+            lon: 121.54,
+            radius: 10,
+            page: 55
+        }
     }
 }
+
 
 // Authorization settings
 const auth = {
     googlemap:{
-        apikey: process.env.GOOGLE_MAP_API_KEY
+        APIKEY: process.env.GOOGLE_MAP_API_KEY
     },
     aws:{
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY
+        ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
+        SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY
     },
     meetup:{
-        client_id: process.env.MEETUP_CLIENT_ID,
-        client_secret: process.env.MEETUP_CLIENT_SECRET,
+        CLIENT_ID: process.env.MEETUP_CLIENT_ID,
+        CLIENT_SECRET: process.env.MEETUP_CLIENT_SECRET,
         access_token: process.env.MEETUP_ACESS_TOKEN,
         refresh_token: process.env.MEETUP_REFRESH_TOKEN
     },
     mysql:{
-        connlimit: process.env.MYSQL_CONNLIMIT,
-        host: process.env.MYSQL_HOST,
-        user: process.env.MYSQL_USER,
-        password: process.env.MYSQL_PASSWORD,
-        database: process.env.MYSQL_DB
+        CONNLIMIT: process.env.MYSQL_CONNLIMIT,
+        HOST: process.env.MYSQL_HOST,
+        USER: process.env.MYSQL_USER,
+        PASSWORD: process.env.MYSQL_PASSWORD,
+        DATABASE: process.env.MYSQL_DB
     },
     redis:{
-        host: process.env.REDIS_HOST,
-        port: process.env.REDIS_PORT
+        HOST: process.env.REDIS_HOST,
+        PORT: process.env.REDIS_PORT
     },
     admin: {
-        pwsecret: process.env.PW_SECRET,
-        port: process.env.PORT
+        PW_SECRET: process.env.PW_SECRET,
+        PORT: process.env.PORT
     }
 }
 
@@ -71,6 +70,5 @@ module.exports = {
     algo: algo,
     admin: admin,
     crawler: crawler,
-    params: params,
     auth: auth
 }

@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const cst = require('./constants');
 
 const googleMapsClient = require('@google/maps').createClient({
-    key: cst.auth.googlemap.apikey,
+    key: cst.auth.googlemap.APIKEY,
     Promise: Promise
 });
 

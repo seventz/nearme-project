@@ -131,17 +131,23 @@ function fbSignin(access_token){
     }).then(function(response){
         return response.json();
     }).then(function(result){
-        if(result.error){
-            document.querySelector('.alert-text').style.display = "flex";
-            document.querySelector('.alert-text').innerHTML = "登入錯誤，請稍後再試。";
-            switchElementView('#modal-sign-form', 'none');
-        }else{
-            switchElementView('#modal-sign-form', 'none');
-            setUserData(result);
-            alertBox("登入成功！").then(function(){
-                switchProfileIcon('show');
-            })
+        switch(result.status){
+            case 200:
+                switchElementView('#modal-sign-form', 'none');
+                alertBox("登入成功！").then(function(){
+                    setUserData(result);
+                    switchProfileIcon('show');
+                });
+                break;
+            case 400:
+                alertBox("請求格式錯誤。");
+                break;
+            case 403:
+                alertBox("無法取得資料，請稍後再試。");
+                break;
         }
+    }).catch(function(){
+        alertBox("登入錯誤，請稍後再試。")
     });
 }
 // -- Upload -- //
@@ -395,7 +401,7 @@ function generateActivityPlanner(){
     }}, sub);
     section = createElement('DIV', {atrs:{
         id: 'map-modal'
-    }}, document.querySelector('.modal-map'));
+    }}, getElement('.modal-map'));
     
     section = createElement('DIV', {atrs:{
         className: 'flex-r-st',

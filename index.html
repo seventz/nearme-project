@@ -11,8 +11,10 @@
     <link rel="stylesheet" href="css/tail.datetime.css">
 	<script src="js/tail.datetime.js"></script>
     <script src="js/util.js"></script>
+    <script src="js/map.js"></script>
+    <script src="js/main.js"></script>
     <script async defer src="https://maps.googleapis.com/maps/api/js?&libraries=places&key=AIzaSyBgZz5j07oQ7gqtfpl7Za5DqNVNK0q41Ro"
-      onload="this.onload=function(){};importJS()"
+      onload="this.onload=function(){};importIndex()"
       onreadystatechange="if(this.readyState === 'complete') this.onload()">
     </script>
 </head>
@@ -142,7 +144,7 @@
                         <input type="checkbox" id="checkbox-user-location"><label for="checkbox-user-location">使用目前地點</label>
                         <input type="checkbox" id="checkbox-realtime-render"><label for="checkbox-realtime-render">即時搜尋功能</label>
                     </div>
-                    <div id="map" style="background-color:rgb(218, 188, 188)"></div>
+                    <div id="map"></div>
                 </div>
                 <div class="main-list">
                     <div id="activity-list">

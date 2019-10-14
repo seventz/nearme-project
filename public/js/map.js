@@ -2,44 +2,36 @@ function loadMap(){
     // Map options
     main.currentLocation = main.defaultCenter;
     // New map
-    main.map = new google.maps.Map(document.getElementById('map'), mapOptions);
+    main.map = new google.maps.Map(getElement('#map'), mapOptions);
     main.bounds = new google.maps.LatLngBounds();
 
     // Initialize markers on the map
-    main.listener = setMapListener(main);
+    main.listener = setMapListener();
 }
 function initMap(){
     clearAllMarkers();
     main.map.panTo(new google.maps.LatLng(main.defaultCenter));
 }
-function setMapListener(mainMapObj, options){
-    mainMapObj.dynMarker = new google.maps.Marker({
-        position: mainMapObj.currentLocation,
-        map: mainMapObj.map,
+function setMapListener(options){
+    main.dynMarker = new google.maps.Marker({
+        position: main.currentLocation,
+        map: main.map,
     });
-    google.maps.event.addListener(mainMapObj.map, 'click', function(event){
-        if(mainMapObj.dynMarker){mainMapObj.dynMarker.setMap(null);}
-        mainMapObj.dynMarker = new google.maps.Marker({
+    google.maps.event.addListener(main.map, 'click', function(event){
+        if(main.dynMarker){main.dynMarker.setMap(null);}
+        main.dynMarker = new google.maps.Marker({
             position: event.latLng,
-            map: mainMapObj.map,
+            map: main.map,
         });
-        mainMapObj.currentLocation.lat = event.latLng.lat();
-        mainMapObj.currentLocation.lng = event.latLng.lng();
-        mainMapObj.map.panTo(event.latLng);
-
+        main.currentLocation.lat = event.latLng.lat();
+        main.currentLocation.lng = event.latLng.lng();
+        main.map.panTo(event.latLng);
         if(options && options.filters==='on'){renderMainView('all', getFilters());}
     });
 }
 function getUserLocation(){
     return new Promise(function(resolve, reject){
         let infoWindow = new google.maps.InfoWindow;
-        navigator.geolocation.watchPosition(function(position) {
-            console.log("i'm tracking you!");
-          },
-          function(error) {
-            if (error.code == error.PERMISSION_DENIED)
-              console.log("you denied me :-(");
-          });
         if(navigator.geolocation){
             navigator.geolocation.getCurrentPosition(function(p){
                 main.currentLocation.lat = p.coords.latitude;
@@ -87,9 +79,9 @@ function initModalMap(){
     modal.opened = true;
 }
 function switchMapMode(){
-    let modalMap = document.querySelector('.modal-map');
-    let hint = document.querySelector('#mode-hint');
-    let input = document.querySelector('#actl-u-place');
+    let modalMap = getElement('.modal-map');
+    let hint = getElement('#mode-hint');
+    let input = getElement('#actl-u-place');
     input.value = "";
     if(modal.opened){
         modalMap.style.display = 'none';
@@ -234,8 +226,6 @@ function indicateLocation(event){
         }else{
             main.pointerMarker.setPosition(new google.maps.LatLng(location.lat, location.lng))
         }
-    }else{
-        // error handling
     }
 }
 const mapStyle = [
@@ -381,7 +371,7 @@ const mapOptions = {
     center: main.defaultCenter,
     styles: mapStyle
 };
-exports={
-    mapStyle: mapStyle,
-    mapOptions: mapOptions
-}
+// exports={
+//     mapStyle: mapStyle,
+//     mapOptions: mapOptions
+// }

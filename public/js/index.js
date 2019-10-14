@@ -74,7 +74,7 @@ function initListeners(){
     });
     getElement('#checkbox-realtime-render').addEventListener('click', function(event){
         main.map = new google.maps.Map(getElement('#map'), mapOptions);
-        main.listener = setMapListener(main, (event.target.checked ? {filters:'on'} : null));
+        main.listener = setMapListener(event.target.checked ? {filters:'on'} : null);
     })
     getElement('#checkbox-user-location').addEventListener('click', function(){
         if(this.checked){
@@ -261,7 +261,6 @@ function getFilters(){
     let cat = getElement('#cat-filter').value;
     let type = getElement('#type-filter').value;
     let listing = getElement('#listing-filter').value;
-    
     return {
         center: center,
         dist: dist*1000,
@@ -283,413 +282,6 @@ function switchMainView(element){
         getElement('.main-list').classList.add('show');
     }
 }
-
-// -- User profile -- //
-function showProfilePage(){
-    requestUserData().then(function(result){
-        getElement('#profile-picture').src = result.data.profile_pic ? result.data.profile_pic : 'img/user.png';
-        showUserInfo(result);
-        switchElementView('#modal-profile', 'flex');
-    }).catch(function(error){
-        alertBox("請先登入會員").then(function(){
-            initPage();
-        });
-    });
-}
-async function showUserInfo(result){
-    // -- Reset content -- //
-    removeChildOf('.profile-content');
-
-    createElement('DIV', {atrs:{
-        className: 'profile-title'
-    }}, getElement('.profile-content'));
-    createElement('P', {atrs:{
-        textContent: '個人資訊'
-    }}, getElement('.profile-title'));
-    
-    // -- get data within this function scope -- //
-    let data, preference;
-    if(Object.keys(misc.user).length!=0){
-        data = misc.user.data;
-        preference = misc.user.preference
-    }else if(result){
-        data = result.data;
-        preference = result.preference;
-    }else{
-        result = await requestUserData();
-        data = result.data;
-        preference = result.preference;
-    }
-    
-    let userObj = [{
-        title: "User ID",
-        content: data.user_id
-    }, {
-        title: "Email",
-        content: data.email
-    }, {
-        title: "Name",
-        content: data.name
-    }, {
-        title: "Icon",
-        content: data.icon ?  `<img class="icon-48" src="../img/${data.icon}.png">` : "(尚未設定圖示)"
-    }];
-    for(let i=0; i<userObj.length; i++){
-        createElement('DIV', {atrs:{
-            className: `profile-userinfo p-u-${i}`
-        }}, getElement('.profile-content'));
-        createElement('DIV', {atrs:{
-            className: 'info-title',
-            innerHTML: userObj[i].title
-        }}, getElement(`.p-u-${i}`));
-        createElement('DIV', {atrs:{
-            className: 'info-content',
-            innerHTML: userObj[i].content
-        }}, getElement(`.p-u-${i}`));
-    }
-    createElement('DIV', {atrs:{
-        className: 'profile-last'
-    }}, getElement('.profile-content'));
-    createElement('BUTTON', {atrs:{
-        id: 'edit-profile',
-        className: 'btn btn-altered',
-        textContent: 'Edit'
-    }, evts:{
-        click: showEdit
-    }}, getElement('.profile-last'));
-    
-}
-function showEdit(){
-    modifyElement(getElement('.p-u-2>.info-title'), {atrs:{
-        textContent: "New name...",
-    }, stys:{
-        backgroundColor: "#f89b4f" 
-    }}, getElement('.p-u-2'));
-
-    let name = getElement('.p-u-2>.info-content').textContent;
-    getElement('.p-u-2').removeChild(getElement('.p-u-2>.info-content'))
-    createElement('INPUT', {atrs:{
-        className: 'info-content input-effect',
-        value: name
-    }}, getElement('.p-u-2'));
-
-
-    modifyElement(getElement('.p-u-3>.info-title'), {atrs:{
-        textContent: "Choose one...",
-    }, stys:{
-        backgroundColor: "#f89b4f" 
-    }}, getElement('.p-u-3'));
-
-    for(let i=0; i<7; i++){
-        let randomNo = randomNoGen(96);
-        let icon = createElement('IMG', {atrs:{
-            id: `icon/${randomNo}`,
-            className: 'icon-48 hover-effect',
-            src: `../img/icon/${randomNo}.png`
-        }}, getElement('.p-u-3>.info-content'));
-
-        icon.addEventListener('click', function(){
-            let nodes = getElementAll('.info-content>img');
-            Array.from(nodes).forEach(n=>n.class='icon-48 hover-effect');
-            this.className = "icon-48 selected";
-        })
-    }
-    modifyElement(getElement('#edit-profile'), {atrs:{
-        id: 'close-edit-profile',
-        className: 'btn btn-submit',
-        textContent: 'OK'
-    }, evts:{
-        click: closeEdit
-    }}, getElement('.profile-last'));
-    getElement('#close-edit-profile').removeEventListener('click', showEdit)
-}
-function closeEdit(){
-    let updateData = {};
-    let nameDiv = getElement('.p-u-2');
-    let nameContent = getElement('.p-u-2>.info-content');
-    let nameTitle = getElement('.p-u-2>.info-title');
-    
-    let newName = nameContent.value;
-    if(newName != misc.user.data.name){
-        updateData.name = newName;
-    }
-    
-    nameDiv.removeChild(nameContent)
-    createElement('DIV', {atrs:{
-        className: 'info-content',
-        textContent: newName
-    }}, nameDiv);
-    
-    modifyElement(nameTitle, {atrs:{
-        textContent: "Name",
-    }, stys:{
-        backgroundColor: "#afafaf" 
-    }}, nameDiv);
-    
-    let iconDiv = getElement('.p-u-3>.info-content');
-    let selectedIcon = getElement('.info-content>img.selected');
-    if(!selectedIcon){
-        while(iconDiv.children.length>1){
-            iconDiv.removeChild(iconDiv.lastChild);
-        }
-    }else{
-        removeChildOf('.p-u-3>.info-content');
-        createElement('IMG', {atrs:{
-            className: 'icon-48',
-            src: `../img/${selectedIcon.id}.png`
-        }}, iconDiv);
-        updateData.icon = selectedIcon.id;
-    }
-
-    modifyElement(getElement('.p-u-3>.info-title'), {atrs:{
-        textContent: "Icon",
-    }, stys:{
-        backgroundColor: "#afafaf" 
-    }}, getElement('.p-u-3'));
-    
-    modifyElement(getElement('#close-edit-profile'), {atrs:{
-        id: 'edit-profile',
-        className: 'btn btn-altered',
-        textContent: 'Edit'
-    }, evts:{
-        click: showEdit
-    }}, getElement('.profile-last'));
-    getElement('#edit-profile').removeEventListener('click', closeEdit);
-
-    // Update data if any change
-    if(Object.keys(updateData).length>0){
-        updateUserData(updateData).then(function(result){
-            if(result.status===200){
-                for(let key in updateData){
-                    misc.user.data[key] = updateData[key];
-                }
-                alertBox("資料已更新！");
-            }
-        }).catch(function(result){
-            if(result.status===500){
-                alertBox("資料更新失敗，請稍後再試。");
-            }
-        });
-    }
-}
-function showWatchList(tabName){    
-    // -- Reset content -- //
-    let profileContent = getElement('.profile-content');
-    removeChildOf('.profile-content');
-    createElement('DIV', {atrs:{
-        className: 'profile-title'
-    }}, profileContent);
-    createElement('P', {atrs:{
-        textContent: '管理活動'
-    }}, getElement('.profile-title'));
-
-    let panel = createElement('DIV', {atrs:{
-        className: "user-actl-panel"
-    }}, profileContent);
-    let tab = createElement('DIV', {atrs:{
-        className: "user-actl-tab flex-r-st"
-    }}, panel);
-    let likedTab = createElement('DIV', {atrs:{
-        id: 'user-actl-tab-liked',
-        textContent: '關注'
-    }}, tab);
-    let joinedTab = createElement('DIV', {atrs:{
-        id: 'user-actl-tab-joined',
-        textContent: '參加'
-    }}, tab);
-    let heldTab = createElement('DIV', {atrs:{
-        id: 'user-actl-tab-held',
-        textContent: '舉辦'
-    }}, tab);
-    createElement('DIV', {atrs:{
-        className: 'user-actl-container'
-    }}, profileContent);
-    likedTab.addEventListener('click', function(){
-        generateWatchContent('liked');
-    });
-    joinedTab.addEventListener('click', function(){
-        generateWatchContent('joined');
-    });
-    heldTab.addEventListener('click', function(){
-        generateWatchContent('held');
-    });
-    
-    // default management tab view
-    tabName ? generateWatchContent(tabName) : generateWatchContent('liked');
-}
-async function generateWatchContent(tabName){
-    // Store current tab infomation
-    misc.currentTab = tabName;
-
-    // Reset tab view
-    let tabs = getElementAll('.user-actl-tab>div');
-    Array.from(tabs).map(t=>t.className='');
-    getElement(`#user-actl-tab-${tabName}`).classList += 'active';
-    removeChildOf('.user-actl-container');
-
-    // Create main frame
-    let preference = JSON.parse(localStorage.getItem('preference'));
-    let detail = await getUserActivities(preference[tabName].join(","));
-    let title = createElement('DIV', {atrs:{
-        className: 'flex-r-b'
-    }}, getElement('.user-actl-container'));
-    createElement('DIV', {stys:{width: '60px'}}, title);
-    createElement('DIV', {atrs:{
-        className: 'user-actl-list-title',
-        innerHTML: mgmtText(tabName, detail.length)
-    }}, title);
-    let imgDiv = createElement('DIV', '', title);
-    let eyeView = createElement('IMG', {atrs:{
-        id: 'edit-visible',
-        className: 'icon-24 hover-effect',
-        src:"../img/visible.png"
-    }, stys:{
-        margin: '0px 3px'
-    }}, imgDiv);
-    let editPen = createElement('IMG', {atrs:{
-        className: 'icon-24 hover-effect',
-        src:"../img/edit.png"
-    }, stys:{
-        margin: '0px 3px'
-    }}, imgDiv);
-    createElement('DIV', {atrs:{
-        className: 'user-actl-list'
-    }}, getElement('.user-actl-container'));
-    
-    // Show remove icon
-    editPen.addEventListener('click', function(){
-        let crosses = getElementAll('.user-actl-card>img');
-        Array.from(crosses).forEach(c=>c.classList.toggle('hide'));
-    });
-    
-    // Not showing passed activities
-    eyeView.addEventListener('click', function(event){
-        let element = event.target;
-        let status = element.id.split('-')[1];
-        let allCards = Array.from(getElementAll('.user-actl-list>div'));
-        let oldCards = allCards.filter(n=>n.classList.contains('old-card'));
-        getElement('.user-actl-list-title').innerHTML=mgmtText(tabName, allCards.length, 'visible');
-        if(status==='invisible'){
-            element.id = `edit-visible`;
-            element.src = `../img/visible.png`;
-            oldCards.forEach(o=>o.style.display='flex');
-        }else{
-            getElement('.user-actl-list-title').innerHTML=mgmtText(tabName, allCards.length-oldCards.length, 'invisible');
-            element.id = `edit-invisible`;
-            element.src = `../img/invisible.png`;
-            oldCards.forEach(o=>o.style.display='none');
-        }
-    })
-    
-    renderUserActivityList(detail);
-    function mgmtText(tabName, count, visibility){
-        if(visibility==='invisible'){
-            return count===0 ? "沒有即將展開的活動..." : `有<strong>${count}</strong>個活動即將展開...`;
-        }
-        let action = '';
-        if(tabName==='liked'){action='關注'}
-        if(tabName==='joined'){action=`參加`}
-        if(tabName==='held'){action=`舉辦`}
-        return count===0 ? `沒有${action}的活動...` : `${action}了<strong>${count}</strong>個活動...`;
-    }
-}
-function renderUserActivityList(detail){
-    // Get tab name from memory
-    let tabName = misc.currentTab;
-    for(let i=0; i<detail.length; i++){
-        let card = createElement('DIV', {atrs:{
-            id: `${tabName}-${detail[i].actl_id}`,
-            className: `user-actl-card ${(new Date(detail[i].t_start)) > Date.now() ? 'new-card' : 'old-card'}`
-        }}, getElement('.user-actl-list'));
-        createElement('DIV', {atrs:{
-            className: 'user-card-no',
-            textContent: i+1
-        }}, card);
-        let content = createElement('DIV', {atrs:{className: 'user-card-content flex-r-b'}}, card);
-        createElement('DIV', {atrs:{
-            id: `${tabName}-${detail[i].actl_id}-title`,
-            className: 'hover-effect',
-            textContent: detail[i].title
-        }, evts:{
-            click: showActivityContent
-        }}, content);
-        createElement('P', {atrs:{
-            id: `${tabName}-${detail[i].actl_id}-time`,
-            className: 'title',
-            textContent: timeFormatter(detail[i].t_start, 'md', 'hm')
-        }}, content);
-        
-        if(tabName==='held'){
-            let editor = createElement('IMG', {atrs:{
-                id: `${tabName}-${detail[i].actl_id}-edit`,
-                className: 'icon-24 hover-effect hide',
-                src:'../img/document.png'
-            }}, card);
-            editor.addEventListener('click', function(){
-                generateActivityEditor(detail[i].actl_id);
-            });
-        }
-
-        let cross = createElement('IMG', {atrs:{
-            id: `${tabName}-${detail[i].actl_id}-delete`,
-            className: 'icon-24 hover-effect hide',
-            src:'../img/delete-r.png'
-        }, evts:{
-            click: removeActivity
-        }}, card);
-        cross.addEventListener('click', function(){
-            removeActivity(detail[i].actl_id, tabName);
-        });
-    }
-}
-
-// -- Upload -- //
-function checkImageType(selector){
-    let supportedType = ['jpg', 'jpeg', 'png', 'gif'];
-    if(getElement(selector).files.length!=1){
-        return({status: true, data: []});
-    }else{
-        let file = getElement(selector).files[0];
-        let fileType = file.type.split('/')[1];
-        return supportedType.includes(fileType) ? {status: true, data: file} : {status: false};
-    }
-}
-async function handleProfileUpload(){
-    let imgObj = checkImageType('#upload-profile');
-    if(imgObj.status===false){return alertBox('請上傳圖片檔: (jpg / jpeg / png / gif)');}
-    if(!imgObj.data.name){return;}
-    let status = await alertBox(`確定要上傳${imgObj.data.name}?`, 'showCancel');
-    if(status===false){return;}
-
-    switchElementView('#modal-loading', 'flex');
-    uploadProfileImage(imgObj.data, {
-        filename: 'profile',
-        user_id: misc.user.data.user_id
-    }).then(function(result){
-        switchElementView('#modal-loading', 'none');
-        alertBox("上傳圖片成功！").then(function(){
-            getElement('#profile-picture').src = result.data;
-        });
-    }).catch(function(result){
-        switchElementView('#modal-loading', 'none');
-        switch(result.status){
-            case 401:
-                alertBox("上傳圖片失敗，請重新登入。").then(function(){
-                    switchElementView('#modal-profile', 'none');
-                    switchElementView('#modal-sign-form', 'flex');
-                });
-                break;
-            case 400:
-                alertBox("上傳格式設定錯誤。");
-                break;
-            default:
-                alertBox("上傳圖片失敗，請稍後再試。");
-                break;
-        }
-    });
-}
-
-// -- Activity -- //
 function renderMainList(result){
     // Show activity entries
     let entries = result.info.entries
@@ -906,9 +498,429 @@ function renderMainViewByPage(query, page){
     query.paging = page-1;
     renderMainView('all', query);
 }
+
+// -- User profile -- //
+function showProfilePage(){
+    requestUserData().then(function(result){
+        getElement('#profile-picture').src = result.data.profile_pic ? result.data.profile_pic : 'img/user.png';
+        showUserInfo(result);
+        switchElementView('#modal-profile', 'flex');
+    }).catch(function(error){
+        alertBox("請先登入會員").then(function(){
+            initPage();
+        });
+    });
+}
+async function showUserInfo(result){
+    // -- Reset content -- //
+    removeChildOf('.profile-content');
+
+    createElement('DIV', {atrs:{
+        className: 'profile-title'
+    }}, getElement('.profile-content'));
+    createElement('P', {atrs:{
+        textContent: '個人資訊'
+    }}, getElement('.profile-title'));
+    
+    // -- get data within this function scope -- //
+    let data, preference;
+    if(Object.keys(misc.user).length!=0){
+        data = misc.user.data;
+        preference = misc.user.preference
+    }else if(result){
+        data = result.data;
+        preference = result.preference;
+    }else{
+        result = await requestUserData();
+        data = result.data;
+        preference = result.preference;
+    }
+    
+    let userObj = [{
+        title: "User ID",
+        content: data.user_id
+    }, {
+        title: "Email",
+        content: data.email
+    }, {
+        title: "Name",
+        content: data.name
+    }, {
+        title: "Icon",
+        content: data.icon ?  `<img class="icon-48" src="../img/${data.icon}.png">` : "(尚未設定圖示)"
+    }];
+    for(let i=0; i<userObj.length; i++){
+        createElement('DIV', {atrs:{
+            className: `profile-userinfo p-u-${i}`
+        }}, getElement('.profile-content'));
+        createElement('DIV', {atrs:{
+            className: 'info-title',
+            innerHTML: userObj[i].title
+        }}, getElement(`.p-u-${i}`));
+        createElement('DIV', {atrs:{
+            className: 'info-content',
+            innerHTML: userObj[i].content
+        }}, getElement(`.p-u-${i}`));
+    }
+    
+    createElement('DIV', {atrs:{
+        id: 'flat-icon-credit',
+        innerHTML: '<div>Icons made by&nbsp</div><a href="https://www.flaticon.com/authors/roundicons" title="Roundicons"><div>Roundicons&nbsp</div></a><div>from&nbsp</div><a href="https://www.flaticon.com/" title="Flaticon">www.flaticon.com</a>'
+    }, stys:{
+        fontSize: '0.8em',
+        display: 'none'
+    }}, getElement('.p-u-3'));
+
+    createElement('DIV', {atrs:{
+        className: 'profile-last'
+    }}, getElement('.profile-content'));
+    createElement('BUTTON', {atrs:{
+        id: 'edit-profile',
+        className: 'btn btn-altered',
+        textContent: 'Edit'
+    }, evts:{
+        click: showEdit
+    }}, getElement('.profile-last'));
+    
+}
+function showEdit(){
+    modifyElement(getElement('.p-u-2>.info-title'), {atrs:{
+        textContent: "New name...",
+    }, stys:{
+        backgroundColor: "#f89b4f" 
+    }}, getElement('.p-u-2'));
+
+    let name = getElement('.p-u-2>.info-content').textContent;
+    getElement('.p-u-2').removeChild(getElement('.p-u-2>.info-content'))
+    createElement('INPUT', {atrs:{
+        className: 'info-content input-effect',
+        value: name
+    }}, getElement('.p-u-2'));
+
+
+    modifyElement(getElement('.p-u-3>.info-title'), {atrs:{
+        textContent: "Choose one...",
+    }, stys:{
+        backgroundColor: "#f89b4f" 
+    }}, getElement('.p-u-3'));
+
+    for(let i=0; i<7; i++){
+        let randomNo = randomNoGen(96);
+        let icon = createElement('IMG', {atrs:{
+            id: `icon/${randomNo}`,
+            className: 'icon-48 hover-effect',
+            src: `../img/icon/${randomNo}.png`
+        }}, getElement('.p-u-3>.info-content'));
+
+        icon.addEventListener('click', function(){
+            let nodes = getElementAll('.info-content>img');
+            Array.from(nodes).forEach(n=>n.class='icon-48 hover-effect');
+            this.className = "icon-48 selected";
+        })
+    }
+
+    switchElementView('#flat-icon-credit', 'flex');
+
+    modifyElement(getElement('#edit-profile'), {atrs:{
+        id: 'close-edit-profile',
+        className: 'btn btn-submit',
+        textContent: 'OK'
+    }, evts:{
+        click: closeEdit
+    }}, getElement('.profile-last'));
+    getElement('#close-edit-profile').removeEventListener('click', showEdit)
+}
+function closeEdit(){
+    let updateData = {};
+    let nameDiv = getElement('.p-u-2');
+    let nameContent = getElement('.p-u-2>.info-content');
+    let nameTitle = getElement('.p-u-2>.info-title');
+    
+    let newName = nameContent.value;
+    if(newName != misc.user.data.name){
+        updateData.name = newName;
+    }
+    
+    nameDiv.removeChild(nameContent)
+    createElement('DIV', {atrs:{
+        className: 'info-content',
+        textContent: newName
+    }}, nameDiv);
+    
+    modifyElement(nameTitle, {atrs:{
+        textContent: "Name",
+    }, stys:{
+        backgroundColor: "#afafaf" 
+    }}, nameDiv);
+    
+    let iconDiv = getElement('.p-u-3>.info-content');
+    let selectedIcon = getElement('.info-content>img.selected');
+    if(!selectedIcon){
+        while(iconDiv.children.length>1){
+            iconDiv.removeChild(iconDiv.lastChild);
+        }
+    }else{
+        removeChildOf('.p-u-3>.info-content');
+        createElement('IMG', {atrs:{
+            className: 'icon-48',
+            src: `../img/${selectedIcon.id}.png`
+        }}, iconDiv);
+        updateData.icon = selectedIcon.id;
+    }
+    switchElementView('#flat-icon-credit', 'none');
+
+    modifyElement(getElement('.p-u-3>.info-title'), {atrs:{
+        textContent: "Icon",
+    }, stys:{
+        backgroundColor: "#afafaf" 
+    }}, getElement('.p-u-3'));
+    
+
+
+    modifyElement(getElement('#close-edit-profile'), {atrs:{
+        id: 'edit-profile',
+        className: 'btn btn-altered',
+        textContent: 'Edit'
+    }, evts:{
+        click: showEdit
+    }}, getElement('.profile-last'));
+    getElement('#edit-profile').removeEventListener('click', closeEdit);
+
+    // Update data if any change
+    if(Object.keys(updateData).length>0){
+        updateUserData(updateData).then(function(result){
+            if(result.status===200){
+                for(let key in updateData){
+                    misc.user.data[key] = updateData[key];
+                }
+                alertBox("資料已更新！");
+            }
+        }).catch(function(result){
+            if(result.status===500){
+                alertBox("資料更新失敗，請稍後再試。");
+            }
+        });
+    }
+}
+function showWatchList(tabName){    
+    // -- Reset content -- //
+    let profileContent = getElement('.profile-content');
+    removeChildOf('.profile-content');
+    createElement('DIV', {atrs:{
+        className: 'profile-title'
+    }}, profileContent);
+    createElement('P', {atrs:{
+        textContent: '管理活動'
+    }}, getElement('.profile-title'));
+
+    let panel = createElement('DIV', {atrs:{
+        className: "user-actl-panel"
+    }}, profileContent);
+    let tab = createElement('DIV', {atrs:{
+        className: "user-actl-tab flex-r-st"
+    }}, panel);
+    let likedTab = createElement('DIV', {atrs:{
+        id: 'user-actl-tab-liked',
+        textContent: '關注'
+    }}, tab);
+    let joinedTab = createElement('DIV', {atrs:{
+        id: 'user-actl-tab-joined',
+        textContent: '參加'
+    }}, tab);
+    let heldTab = createElement('DIV', {atrs:{
+        id: 'user-actl-tab-held',
+        textContent: '舉辦'
+    }}, tab);
+    createElement('DIV', {atrs:{
+        className: 'user-actl-container'
+    }}, profileContent);
+    likedTab.addEventListener('click', function(){
+        generateWatchContent('liked');
+    });
+    joinedTab.addEventListener('click', function(){
+        generateWatchContent('joined');
+    });
+    heldTab.addEventListener('click', function(){
+        generateWatchContent('held');
+    });
+    
+    // default management tab view
+    tabName ? generateWatchContent(tabName) : generateWatchContent('liked');
+}
+async function generateWatchContent(tabName){
+    // Store current tab infomation
+    misc.currentTab = tabName;
+
+    // Reset tab view
+    let tabs = getElementAll('.user-actl-tab>div');
+    Array.from(tabs).map(t=>t.className='');
+    getElement(`#user-actl-tab-${tabName}`).classList += 'active';
+    removeChildOf('.user-actl-container');
+
+    // Create main frame
+    let preference = JSON.parse(localStorage.getItem('preference'));
+    let detail = await getUserActivities(preference[tabName].join(","));
+    let title = createElement('DIV', {atrs:{
+        className: 'flex-r-b'
+    }}, getElement('.user-actl-container'));
+    createElement('DIV', {stys:{width: '60px'}}, title);
+    createElement('DIV', {atrs:{
+        className: 'user-actl-list-title',
+        innerHTML: mgmtText(tabName, detail.length)
+    }}, title);
+    let imgDiv = createElement('DIV', '', title);
+    let eyeView = createElement('IMG', {atrs:{
+        id: 'edit-visible',
+        className: 'icon-24 hover-effect',
+        src:"../img/visible.png"
+    }, stys:{
+        margin: '0px 3px'
+    }}, imgDiv);
+    let editPen = createElement('IMG', {atrs:{
+        className: 'icon-24 hover-effect',
+        src:"../img/edit.png"
+    }, stys:{
+        margin: '0px 3px'
+    }}, imgDiv);
+    createElement('DIV', {atrs:{
+        className: 'user-actl-list'
+    }}, getElement('.user-actl-container'));
+    
+    // Show remove icon
+    editPen.addEventListener('click', function(){
+        let crosses = getElementAll('.user-actl-card>img');
+        Array.from(crosses).forEach(c=>c.classList.toggle('hide'));
+    });
+    
+    // Not showing passed activities
+    eyeView.addEventListener('click', function(event){
+        let element = event.target;
+        let status = element.id.split('-')[1];
+        let allCards = Array.from(getElementAll('.user-actl-list>div'));
+        let oldCards = allCards.filter(n=>n.classList.contains('old-card'));
+        getElement('.user-actl-list-title').innerHTML=mgmtText(tabName, allCards.length, 'visible');
+        if(status==='invisible'){
+            element.id = `edit-visible`;
+            element.src = `../img/visible.png`;
+            oldCards.forEach(o=>o.style.display='flex');
+        }else{
+            getElement('.user-actl-list-title').innerHTML=mgmtText(tabName, allCards.length-oldCards.length, 'invisible');
+            element.id = `edit-invisible`;
+            element.src = `../img/invisible.png`;
+            oldCards.forEach(o=>o.style.display='none');
+        }
+    })
+    
+    renderUserActivityList(detail);
+    function mgmtText(tabName, count, visibility){
+        if(visibility==='invisible'){
+            return count===0 ? "沒有即將展開的活動..." : `有<strong>${count}</strong>個活動即將展開...`;
+        }
+        let action = '';
+        if(tabName==='liked'){action='關注'}
+        if(tabName==='joined'){action=`參加`}
+        if(tabName==='held'){action=`舉辦`}
+        return count===0 ? `沒有${action}的活動...` : `${action}了<strong>${count}</strong>個活動...`;
+    }
+}
+function renderUserActivityList(detail){
+    // Get tab name from memory
+    let tabName = misc.currentTab;
+    for(let i=0; i<detail.length; i++){
+        let card = createElement('DIV', {atrs:{
+            id: `${tabName}-${detail[i].actl_id}`,
+            className: `user-actl-card ${(new Date(detail[i].t_start)) > Date.now() ? 'new-card' : 'old-card'}`
+        }}, getElement('.user-actl-list'));
+        createElement('DIV', {atrs:{
+            className: 'user-card-no',
+            textContent: i+1
+        }}, card);
+        let content = createElement('DIV', {atrs:{className: 'user-card-content flex-r-b'}}, card);
+        createElement('DIV', {atrs:{
+            id: `${tabName}-${detail[i].actl_id}-title`,
+            className: 'hover-effect',
+            textContent: detail[i].title
+        }, evts:{
+            click: showActivityContent
+        }}, content);
+        createElement('P', {atrs:{
+            id: `${tabName}-${detail[i].actl_id}-time`,
+            className: 'title',
+            textContent: timeFormatter(detail[i].t_start, 'md', 'hm')
+        }}, content);
+        
+        if(tabName==='held'){
+            let editor = createElement('IMG', {atrs:{
+                id: `${tabName}-${detail[i].actl_id}-edit`,
+                className: 'icon-24 hover-effect hide',
+                src:'../img/document.png'
+            }}, card);
+            editor.addEventListener('click', function(){
+                generateActivityEditor(detail[i].actl_id);
+            });
+        }
+
+        let cross = createElement('IMG', {atrs:{
+            id: `${tabName}-${detail[i].actl_id}-delete`,
+            className: 'icon-24 hover-effect hide',
+            src:'../img/delete-r.png'
+        }}, card);
+        cross.addEventListener('click', function(){
+            removeActivity(detail[i].actl_id, tabName);
+        });
+    }
+}
+
+// -- Upload -- //
+function checkImageType(selector){
+    let supportedType = ['jpg', 'jpeg', 'png', 'gif'];
+    if(getElement(selector).files.length!=1){
+        return({status: true, data: []});
+    }else{
+        let file = getElement(selector).files[0];
+        let fileType = file.type.split('/')[1];
+        return supportedType.includes(fileType) ? {status: true, data: file} : {status: false};
+    }
+}
+async function handleProfileUpload(){
+    let imgObj = checkImageType('#upload-profile');
+    if(imgObj.status===false){return alertBox('請上傳圖片檔: (jpg / jpeg / png / gif)');}
+    if(!imgObj.data.name){return;}
+    let status = await alertBox(`確定要上傳${imgObj.data.name}?`, 'showCancel');
+    if(status===false){return;}
+
+    switchElementView('#modal-loading', 'flex');
+    uploadProfileImage(imgObj.data, {
+        filename: 'profile',
+        user_id: misc.user.data.user_id
+    }).then(function(result){
+        switchElementView('#modal-loading', 'none');
+        alertBox("上傳圖片成功！").then(function(){
+            getElement('#profile-picture').src = result.data;
+        });
+    }).catch(function(result){
+        switchElementView('#modal-loading', 'none');
+        switch(result.status){
+            case 401:
+                alertBox("上傳圖片失敗，請重新登入。").then(function(){
+                    switchElementView('#modal-profile', 'none');
+                    switchElementView('#modal-sign-form', 'flex');
+                });
+                break;
+            case 400:
+                alertBox("上傳格式設定錯誤。");
+                break;
+            default:
+                alertBox("上傳圖片失敗，請稍後再試。");
+                break;
+        }
+    });
+}
+
+// -- Activity -- //
 function renderActivityContent(result){
-    let content = result.content;
-    let members = result.member;
+    let content = result.data.content;
+    let members = result.data.member;
 
     getElement('#ac-img').src=content.main_img || 'img/bg/explorer.jpg';
     getElement('#ac-title').innerHTML=content.title;
@@ -969,9 +981,6 @@ function renderActivityContent(result){
             joinActivity(content.actl_id)
         });
     }
-        
-    
-    // <div>Icons made by <a href="https://www.flaticon.com/authors/roundicons" title="Roundicons">Roundicons</a> from <a href="https://www.flaticon.com/"     title="Flaticon">www.flaticon.com</a></div>
 
     if(content.lat){
         modal.map = new google.maps.Map(getElement('#ac-map'), {
@@ -1029,7 +1038,7 @@ async function removeActivity(actl_id, action){
     if(status===false) return;
 
     switchElementView('#modal-loading', 'flex');
-    updateActivityStatus(actl_id, action).then(function(){
+    updateActivityStatus(actl_id, action).then(function(result){
         triggerStatusChange();
         switchElementView('#modal-loading', 'none');
         updatePreference(actl_id, action, 'delete');
@@ -1037,7 +1046,6 @@ async function removeActivity(actl_id, action){
             showWatchList(action);
         });
     }).catch(function(result){
-        console.log(result)
         switchElementView('#modal-loading', 'none');
         showErrorMsg(result).then(function(){
             switchElementView('#modal-activity-content', 'none');
@@ -1087,15 +1095,15 @@ function autoCompleteType(event){
             color: 'grey'
         }}, typelist);
     }else{
-        fitTypes.forEach(function(t){
+        for(let i=0; i<fitTypes.length; i++){
             createElement('DIV', {atrs:{
-                id: `type-${t}`,
-                textContent: t
+                id: `type-${i}`,
+                textContent: fitTypes[i]
             }}, typelist);
-            getElement(`#type-${t}`).addEventListener('mouseover', function(){
-                getElement('#actl-u-type') = this.textContent;
+            getElement(`#type-${i}`).addEventListener('mouseover', function(){
+                getElement('#actl-u-type').value = this.textContent;
             });
-        });
+        }
     }
     addKeydownResetListener('#activity-planner-type');
     addClickResetListener('#activity-planner-type');
@@ -1314,6 +1322,9 @@ function timeFormatter(time, ymdFormat, hmsFormat){
 }
 function clearValue(selectorArr){
     selectorArr.forEach(s=>getElement(s).value="");
+}
+function triggerStatusChange(){
+    renderMainView('all', getFilters());
 }
 function alertBox(message, showCancel){
     getElement('#alert-cancel').removeEventListener('click', closeAlert);

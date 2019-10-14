@@ -31,13 +31,6 @@ function getLocalISOTime(){
 	return localISOTime;
 }
 
-function minusUTCOffset(datetime){
-    let ms = new Date(datetime).getTime();
-	let tzOffset = (new Date()).getTimezoneOffset() * 60000;
-	let localISOTime = (new Date(ms - 2*tzOffset)).toISOString().slice(0, -1);
-	return localISOTime;
-}
-
 function delay(timeout){
     return new Promise(function(resolve){
         setTimeout(resolve, timeout);
@@ -91,8 +84,8 @@ module.exports={
     randomNoGen: randomNoGen,
     userIdGen: userIdGen,
     getLocalISOTime: getLocalISOTime,
-    minusUTCOffset: minusUTCOffset,
     delay: delay,
     geocodeBuffer: geocodeBuffer,
-    reverseGeocodeBuffer: reverseGeocodeBuffer
+    reverseGeocodeBuffer: reverseGeocodeBuffer,
+    processingLocation: processingLocation
 };

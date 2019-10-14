@@ -2,8 +2,8 @@
 function signin(){
     let body = JSON.stringify({
         provider: 'native',
-        email: document.getElementById('sign-in-email').value,
-        password: document.getElementById('sign-in-password').value
+        email: getElement('#sign-in-email').value,
+        password: getElement('#sign-in-password').value
     });
     fetch("/user/signin", {
         method: "POST",
@@ -15,66 +15,80 @@ function signin(){
     }).then(function(response){
         return response.json();
     }).then(function(result){
-        if(result.error){
-            document.querySelector('.alert-text').style.display = "flex";
-            document.querySelector('.alert-text').innerHTML = "Email or password does not match!";
-            clearValue(['#sign-in-password']);
-        }else{
-            clearValue(['#sign-in-password']);
-            switchElementView('#modal-sign-form', 'none');
-            alertBox("登入成功！").then(function(){
-                setUserData(result);
-                switchProfileIcon('show');
-            })
+        clearValue(['#sign-in-password']);
+        switch(result.status){
+            case 200:
+                switchElementView('#modal-sign-form', 'none');
+                alertBox("登入成功！").then(function(){
+                    setUserData(result);
+                    switchProfileIcon('show');
+                });
+                break;
+            case 400:
+                alertBox("請求格式錯誤。");
+                break;
+            case 401:
+                switchElementView('.alert-text', 'flex');
+                getElement('.alert-text').innerHTML = "帳號或密碼錯誤。";
+                break;
+            case 403:
+                alertBox("無法取得資料，請稍後再試。");
+                break;
         }
-    }).catch(function(err){
-        console.log(err)
+    }).catch(function(){
         alertBox("登入錯誤，請稍後再試。")
     });
 }
 function signup(){
-    let name = document.getElementById('sign-up-name').value;
-    let email = document.getElementById('sign-up-email').value;
-    let password = document.getElementById('sign-up-password').value;
-    let password2 = document.getElementById('sign-up-password-2').value;
-    let errMsg = signUpErrMsg(name, email, password, password2); // test snippet
-    // let errMsg = false; // test snippet
+    let name = getElement('#sign-up-name').value;
+    let email = getElement('#sign-up-email').value;
+    let password = getElement('#sign-up-password').value;
+    let password2 = getElement('#sign-up-password-2').value;
+    let errMsg = signUpErrMsg(name, email, password, password2);
 
     if(errMsg){
-        document.querySelector('.alert-text').style.display = "flex";
-        document.querySelector('.alert-text').innerHTML = errMsg;
+        switchElementView('.alert-text', 'flex');
+        getElement('.alert-text').innerHTML = errMsg;
         clearValue(['#sign-up-password', '#sign-up-password-2']);
-    }else{
+        return;
+    }
+    switchElementView('.alert-text', 'hidden');
+    let body = JSON.stringify({
+        provider: 'native',
+        name: name,
+        email: email,
+        password: password
+    });
+    fetch("/user/signup", {
+        method: "POST",
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
+        body: body
+    }).then(function(response){
+        return response.json();
+    }).then(function(result){
         clearValue(['#sign-up-password', '#sign-up-password-2']);
-        document.querySelector('.alert-text').style.display = "hidden";
-        let body = JSON.stringify({
-            provider: 'native',
-            name: name,
-            email: email,
-            password: password
-        });
-        fetch("/user/signup", {
-            method: "POST",
-            headers: {
-                'Accept': 'application/json',
-                'Content-Type': 'application/json'
-            },
-            body: body
-        }).then(function(response){
-            return response.json();
-        }).then(function(result){
-            if(!result.error){
+        switch(result.status){
+            case 200:
                 switchElementView('#modal-sign-form', 'none');
                 localStorage.setItem('access_token', result.data.access_token); 
                 alertBox("建立帳戶成功！").then(function(){
                     setUserData(result);
                     switchProfileIcon('show');
-                })
-            }else{
-                alertBox("此帳號已註冊。");
-            }
-        });
-    }
+                });
+                break;
+            case 409:
+                alertBox("此 Email 帳戶已被註冊，請嘗試其他帳戶！");
+                break;
+            case 500:
+                alertBox("系統繁忙，請稍後再試。");
+                break;
+        }
+    }).catch(function(){
+        alertBox("註冊帳號錯誤，請稍後再試。")
+    });
 }
 
 // -- FB -- //
@@ -95,9 +109,6 @@ function fbLoginStatusChange(response){
     if(response.status === 'connected'){
         let fbToken = response.authResponse.accessToken;
         fbSignin(fbToken);
-        console.log('Logged in and authenticated');
-    }else{
-        console.log('Not authenticated');
     }
 }
 function fbLogin(){
@@ -184,7 +195,7 @@ function getActivityData(mode, prop){
     return fetch(query, options).then(r=>r.json());
 }
 function getUserActivities(ids){
-    return fetch(`/user/activity?actl_id=${ids}`).then(r=>r.json());
+    return fetch(`/user/activities?actl_id=${ids}`).then(r=>r.json());
 }
 function getActivityDetail(id){
     return fetch(`/get/activity/?actl_id=${id}`).then(r=>r.json());
@@ -493,8 +504,15 @@ function showActivityContent(event, id){
     if(event){id = event.target.id.split('-')[1]}
     if(!id){return alertBox("沒有更多詳細資訊可以顯示。");}
     getActivityDetail(id).then(function(result){
-        renderActivityContent(result);
-        switchElementView('#modal-activity-content', 'flex');
+        switch(result.status){
+            case 200:
+                renderActivityContent(result);
+                switchElementView('#modal-activity-content', 'flex');
+                break;
+            case 500:
+                alertBox("系統錯誤，請稍後再試。");
+                break;
+        }
     });
 }
 function createActivity(){
@@ -524,12 +542,10 @@ function editActivity(actl_id){
         triggerStatusChange();
         switchElementView('#modal-loading', 'none');
         await alertBox("成功編輯活動！");
-        console.log(result)
         getElement(`#held-${actl_id}-title`).innerHTML = result.data.title;
         getElement(`#held-${actl_id}-time`).innerHTML = result.data.t_start.substring(5);
         switchElementView('#modal-activity-planner', 'none');
     }).catch(async function(result){
-        console.log(result)
         switchElementView('#modal-loading', 'none');
         await alertBox("編輯活動失敗，請稍後再試。");
         switchElementView('#modal-activity-planner', 'none');
@@ -571,7 +587,7 @@ function updateActivityStatus(actl_id, action){
             headers: headers,
             body: JSON.stringify({actl_id: actl_id})
         }).then(function(response){
-            return response.json()
+            return response.json();
         }).then(function(result){
             switch(result.status){
                 case 200:
@@ -608,9 +624,6 @@ function updateUserData(data){
     })
 }
 // -- Misc -- //
-function triggerStatusChange(){
-    renderMainView('all', getFilters());
-}
 function requestUserData(){
     let access_token = localStorage.getItem('access_token');
     let provider = localStorage.getItem('provider');

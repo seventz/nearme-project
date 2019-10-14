@@ -107,19 +107,8 @@ function setEventHandlers(obj,eventHandlers,useCapture){
     fjs.parentNode.insertBefore(js, fjs);
 }(document, 'script', 'facebook-jssdk'));
 
-function importJS(){
-    let documentHead = document.getElementsByTagName("head")[0];
-    // createElement('SCRIPT', {atrs:{
-    //     type: "text/javascript",
-    //     src: "js/googlemap/markerclusterer.js"
-    // }}, documentHead);
-    createElement('SCRIPT', {atrs:{
-        src: "js/main.js"
-    }}, documentHead);
+function importIndex(){
     createElement('SCRIPT', {atrs:{
         src: "js/index.js"
-    }}, documentHead);
-    createElement('SCRIPT', {atrs:{
-        src: "js/map.js"
-    }}, documentHead);
+    }}, document.getElementsByTagName("head")[0]);
 }

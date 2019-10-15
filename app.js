@@ -1,7 +1,6 @@
 const express = require('express');
 const bodyparser = require("body-parser");
 const path = require('path');
-const request = require('request');
 const multer = require("multer");
 const cron = require('node-cron');
 const crypto = require('crypto');
@@ -12,8 +11,10 @@ const Redis = require('ioredis');
 // Constants and Library
 const cst = require('./source/constants');
 const lib = require('./source/lib');
-const dao = require('./source/dao');
-const mysql = require("./source/mysqlcon");
+const dao = {
+	util: require('./source/dao/util'),
+	core: require('./source/dao/util')
+};
 const dataCrawler = require("./source/dataCrawler");
 
 // aws S3 Configuration
@@ -52,6 +53,7 @@ app.get('/', function(req, res){
 	res.sendFile(path.join(__dirname + "/index.html"));
 });
 
+
 app.get('/filter/:mode', getFromCache, async function(req, res){
 	let {mode} = req.params;
 	let {center, dist, cat, owner, type, listing, paging} = req.query;
@@ -60,9 +62,9 @@ app.get('/filter/:mode', getFromCache, async function(req, res){
 
 	let result;
 	if(mode==='id'){
-		result = await dao.getData({actl_id: actl_id});
+		result = await dao.util.getData({actl_id: actl_id});
 	}else{
-		result = await dao.getDataByFilters(req.query);
+		result = await dao.util.getDataByFilters(req.query);
 		// Update new search information into cache
 		redis.set(`${id_token}:lastResult`, JSON.stringify(result), "EX", 600);
 		let lastTitle = result.map(function(r){
@@ -86,7 +88,7 @@ app.get('/filter/:mode', getFromCache, async function(req, res){
 			paging: paging,
 			pageCount: cst.admin.PAGE_COUNT,
 			query: req.query
-		}});
+	}});
 });
 app.get('/search/title/:mode', async function(req, res){
 	let {mode} = req.params;
@@ -142,8 +144,8 @@ app.get('/search/title/:mode', async function(req, res){
 	}
 });
 app.get('/get/activity', function(req, res){
-	let content = dao.getData({actl_id: req.query.actl_id});
-	let members = dao.getActivityMembers(req.query.actl_id);
+	let content = dao.util.getData({actl_id: req.query.actl_id});
+	let members = dao.util.getActivityMembers(req.query.actl_id);
 	Promise.all([content, members]).then(function(results){
 		let members = results[1];
 		members.forEach(m=>m.icon=`../img/${m.icon}.png`);
@@ -164,11 +166,11 @@ app.get('/get/list/:p', async function(req, res){
 	if(p==='category'){return res.json(cst.admin.CAT);}
 	if(p==='type'){
 		if(cat==='custom'){
-			dao.getDistinctTypes('actl_type', cat).then(function(result){
+			dao.util.getDistinctTypes('actl_type', cat).then(function(result){
 				return res.json(result.map(t=>t.actl_type));
 			});
 		}else if(cat==='official'){
-			dao.getDistinctTypes('owner', cat).then(function(result){
+			dao.util.getDistinctTypes('owner', cat).then(function(result){
 				return res.json(result.map(t=>t.owner));
 			});
 		}
@@ -231,13 +233,8 @@ app.post('/upload/addActl', uploadS3Activity, async function(req, res){
 		actl_id: actl_id,
 		status: 'held'
 	}
-	let querySet = [
-		{query: "INSERT INTO data SET ?", data: data}, 
-		{query: "INSERT INTO activity SET ?", data: actlData}
-	];
 	
-	// -- Transaction with all queries -- //
-	mysql.txnQueries(querySet).then(function(){
+	dao.core.addActivity(data, actlData).then(function(){
 		res.json({status: 200, data: data});
 	}).catch(function(){
 		res.json({status: 500, error: "Add activity error."});
@@ -259,7 +256,7 @@ app.post('/upload/editActl', uploadS3Activity, async function(req, res){
 		data.lat = result.location.lat;
 		data.lng = result.location.lng;
 	}
-	dao.updateData(data, {actl_id: data.actl_id}).then(function(){
+	dao.util.updateData(data, {actl_id: data.actl_id}).then(function(){
 		res.json({status: 200, data: data});
 	}).catch(function(){
 		res.json({status: 500, error: "Update activity error."});
@@ -276,7 +273,7 @@ app.post('/upload/profile', uploadS3Profile, async function(req, res){
 	let path = req.files.profile[0].location;
 	deleteOldImg('profile_pic', {user_id: data.user_id});
 	
-	dao.updateUserData({profile_pic: path}, {user_id: data.user_id}).then(function(){
+	dao.util.updateUserData({profile_pic: path}, {user_id: data.user_id}).then(function(){
 		res.json({status: 200, data: path});
 	}).catch(function(){
 		res.json({status: 500, error: "Update user data error."})
@@ -284,83 +281,43 @@ app.post('/upload/profile', uploadS3Profile, async function(req, res){
 });
 
 app.post('/user/signin', async function(req, res){
-	let {provider, email, password} = req.body;
-	let data = {};
+	let {provider} = req.body;
 	if(provider!='native' && provider!='facebook'){
-		res.json({status: 400, error:"Invalid provider."});
+		return res.json({status: 400, error:"Invalid provider."});
 	}
-	if(provider === 'native'){
-		let access_expired = Date.now() + (cst.admin.TOKEN_EXPIRED_IN_SEC * 1000);
-		let access_token = crypto.createHash('sha256').update(Date.now().toString()).digest('hex');
-		let user = await dao.getUserData({
-			provider: provider,
-			email: email,
-			password: crypto.createHmac('sha256', password+cst.auth.admin.PW_SECRET).digest('hex')
-		});
-		if(user.length!=1){
-			return res.json({status: 401, erorr: "Invalid email or password."});
-		}else{
-			data = user[0];
-			await dao.updateUserData({
-				access_token: access_token,
-				access_expired: access_expired
-			}, {email: req.body.email});
-		}
-	}else if(provider === 'facebook'){
-		let {access_token} = req.body;
-		let fbUrl = `https://graph.facebook.com/me?fields=id,name,email,picture.width(300).height(300)&access_token=${access_token}`;
-		request(fbUrl, async function(err, response, body){
-			if(err){
-				return res.json({status: 403, error: "Unable to get profile from Facebook."});
-			}
-			let resData = JSON.parse(body);
-			let user = await dao.getUserData({
-				provider: provider,
-				name: resData.name,
-				email: resData.email
-			})
-			if(user.length!=1){
-				data = {
-					user_id: lib.userIdGen(),
-					provider: provider,
-					name: resData.name,
-					email: resData.email,
-					icon: `icon/${lib.randomNoGen(96)}`,
-					profile_pic: resData.picture.data.url,
-					access_token: access_token,
+
+	signinByProvider(provider).then(async function(result){
+		let preference = await dao.util.getActivityData({user_id: result.user.user_id});
+		return res.json({
+			status: 200,
+			data:{
+				user_id: result.user.user_id,
+				provider: result.user.provider,
+				name: result.user.name,
+				email: result.user.email,
+				icon: result.user.icon,
+				profile_pic: result.user.profile_pic,
+				access_token: result.user.access_token
+			}, 
+			preference: preference.map(function(u){
+				return {
+					actl_id: u.actl_id,
+					status: u.status
 				}
-				await dao.insert('user', data);
-			}else{
-				data = user[0];
-				await dao.updateUserData({
-					access_token: access_token,
-					profile_pic: data.profile_pic,
-				}, {email: data.email});
-			}
+			})
 		});
-	}
-	let preference = await dao.getActivityData({user_id: data.user_id});	
-	return res.json({
-		status: 200,
-		data:{
-			user_id: data.user_id,
-			provider: data.provider,
-			name: data.name,
-			email: data.email,
-			icon: data.icon,
-			profile_pic: data.profile_pic,
-			access_token: access_token
-		}, 
-		preference: preference.map(function(u){
-			return {
-				actl_id: u.actl_id,
-				status: u.status
-			}
-		})
-	});
+	})
+
+	function signinByProvider(provider){
+		if(provider === 'native'){
+			return dao.core.signinNative({email: req.body.email, password: req.body.password});
+		}else if(provider === 'facebook'){
+			return dao.core.signinFB({access_token: req.body.access_token});
+		}
+	}	
 });
 app.post('/user/signup', async function(req, res){
-	let user = await dao.getUserData({email: req.body.email});
+	let user = await dao.util.getUserData({email: req.body.email});
 	if(user.length===1){
 		return res.json({status: 409, erorr: "Duplicate email."});
 	}
@@ -380,7 +337,7 @@ app.post('/user/signup', async function(req, res){
 		access_expired: access_expired
 	}
 
-	dao.insert('user', data).then(function(){
+	dao.util.insert('user', data).then(function(){
 		res.json({
 			status: 200, 
 			data:{
@@ -398,11 +355,11 @@ app.post('/user/signup', async function(req, res){
 	
 });
 app.get('/user/profile', bearerToken, async function(req, res){
-	let user = await dao.getUserData({access_token: req.token});
+	let user = await dao.util.getUserData({access_token: req.token});
 	if(user.length!=1){
 		return res.json({status: 403, erorr: "Invalid token."});
 	}
-	let userActl = await dao.getActivityData({user_id: user[0].user_id});
+	let userActl = await dao.util.getActivityData({user_id: user[0].user_id});
 	res.json({
 		status: 200, 
 		data:{
@@ -423,14 +380,14 @@ app.get('/user/profile', bearerToken, async function(req, res){
 	});
 });
 app.get('/user/activities', function(req, res){
-	dao.getUserActivities(req.query.actl_id).then(function(result){
+	dao.util.getUserActivities(req.query.actl_id).then(function(result){
 		res.json(result);
 	}).catch(function(){
 		res.json({status: 500, error: "Database query error."})
 	});
 });
 app.post('/user/status/:action', bearerToken, async function(req, res){
-	let user = await dao.getUserData({access_token: req.token});
+	let user = await dao.util.getUserData({access_token: req.token});
 	if(user.length!=1){
 		return res.json({status: 403, erorr: "Invalid token."});
 	}
@@ -445,13 +402,13 @@ app.post('/user/status/:action', bearerToken, async function(req, res){
 		return res.json({status: 400, error: "Invalid request."});
 	}
 	
-	let actlData = await dao.getActivityData({
+	let actlData = await dao.util.getActivityData({
 		user_id: user_id,
 		actl_id: actl_id,
 		status: status
 	});
 	if(actlData.length===0){
-		dao.insert('activity', {
+		dao.util.insert('activity', {
 			actl_id: actl_id,
 			user_id: user_id,
 			status: status
@@ -462,13 +419,13 @@ app.post('/user/status/:action', bearerToken, async function(req, res){
 		});
 	}else{
 		if(status==='held'){
-			dao.delete('data', {actl_id: actl_id}).then(function(){
+			dao.util.delete('data', {actl_id: actl_id}).then(function(){
 				return res.json({status: 200, message: 'removed'});
 			}).catch(function(){
 				return res.json({status: 500, error: "Remove data error."})
 			});
 		}else{
-			dao.delete('activity', {
+			dao.util.delete('activity', {
 				actl_id: actl_id,
 				user_id: user_id,
 				status: status
@@ -481,11 +438,11 @@ app.post('/user/status/:action', bearerToken, async function(req, res){
 	}
 });
 app.post('/user/update/profile', bearerToken, async function(req, res){
-	let user = await dao.getUserData({access_token: req.token});
+	let user = await dao.util.getUserData({access_token: req.token});
 	if(user.length!=1){
 		return res.json({status: 403, erorr: "Invalid token."});
 	}
-	dao.updateUserData(req.body, {user_id: user[0].user_id}).then(function(){
+	dao.util.updateUserData(req.body, {user_id: user[0].user_id}).then(function(){
 		res.json({status: 200, message: 'updated'});
 	}).catch(function(){	
 		res.json({status: 500, error: 'Update data error.'})
@@ -495,9 +452,10 @@ app.post('/user/update/profile', bearerToken, async function(req, res){
 async function getFromCache(req, res, next){
 	let {mode} = req.params;
 	let {actl_id} = req.query;
-	let {center, dist, cat, owner, type, listing, paging} = req.query;
+	let {center, dist, cat, owner, type, listing, paging, refresh} = req.query;
 	let {id_token} = req.headers;
 
+	if(refresh){return next();}
 	paging = paging ? parseInt(paging) : 0;
 	listing = listing ? parseInt(listing) : 12;
 	req.query.paging = paging;
@@ -538,7 +496,7 @@ async function getFromCache(req, res, next){
 	}
 }
 async function deleteOldImg(field, reference){
-	let oldPath = await dao.getImgPath(field, reference);
+	let oldPath = await dao.util.getImgPath(field, reference);
 	if(oldPath[0][field]){
 		let params = {Bucket: cst.admin.BUCKET_NAME, Delete: {Objects:[{Key: oldPath[0][field].split(cst.admin.S3_BUCKET)[1]}]}};
 		s3.deleteObjects(params, function(err, data){
@@ -557,7 +515,7 @@ function bearerToken(req, res, next){
 }
 
 app.listen(cst.auth.admin.PORT, () => {
-	console.log(`My application is running on port ${cst.auth.admin.PORT}!`)
+	console.log(`This application is running on port ${cst.auth.admin.PORT}.`)
 });
 
 module.exports=app;

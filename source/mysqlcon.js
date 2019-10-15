@@ -120,43 +120,66 @@ const transactionQueryPromise = function(query, params){
     });
 }
 
-const sqlQuery = function(query, params, callback){
-    if(params){
-        return mysqlPool.query(query, params, function(error, results){
-            if(error) return(callback(error));
-            else return(results);
+const transaction = function(callback){
+    return new Promise(function(resolve, reject){
+        mysqlPool.getConnection(function(connErr, conn){
+            if(connErr){
+                conn.release();
+                return reject(connErr);
+            }else{
+                conn.beginTransaction(function(txnErr){
+                    if(txnErr){
+                        conn.rollback(function(){
+                            conn.release();
+                            return reject(txnErr);
+                        });
+                    }else{
+                        // Pass pool connection into callback()
+                        callback(conn).then(function(result){
+                            conn.commit(function(commErr){
+                                if(commErr){
+                                    conn.rollback(function(){
+                                        reject(commErr)
+                                        return conn.release();
+                                    });
+                                }
+                                resolve(result);
+                                conn.release();
+                            });
+                        }).catch(function(cbErr){
+                            conn.rollback(function(){
+                                reject(cbErr);
+                                return conn.release();
+                            });
+                        });
+                    }
+                });
+            }
         });
-    }else{
-        return mysqlPool.query(query, function(error, results){
-            if(error) return(callback(error));
-            else return(results);
-        });
-    }
+    });
 }
 
-const sqlQueryPromise = function(query, params, callback){
-    if(params){
-        return new Promise(function(resolve, reject){
+const sqlQueryPromise = function(query, params, connection){
+    return new Promise(function(resolve, reject){
+        if(connection){
+            connection.query(query, params, function(error, results){
+                if(error) reject(error);
+                else resolve(results);
+            });
+        }else{
             mysqlPool.query(query, params, function(error, results){
-                if(error) reject(callback(error));
+                if(error) reject(error);
                 else resolve(results);
             });
-        });
-    }else{
-        return new Promise(function(resolve, reject){
-            mysqlPool.query(query, function(error, results){
-                if(error) reject(callback(error));
-                else resolve(results);
-            });
-        });
-    }
+        }
+    });
 }
 
 module.exports={
     core: mysql,
     pool: mysqlPool,
-    query: sqlQuery,
     queryp: sqlQueryPromise,
+    txn: transaction,
     txnFunction: transactionFunction,
     txnQuery: transactionQueryPromise,
     txnQueries: transactionQueriesPromise

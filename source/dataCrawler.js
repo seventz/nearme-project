@@ -1,5 +1,7 @@
 const mysql = require("./mysqlcon");
-const dao = require("./dao")
+const dao = {
+    util: require("./dao/util")
+};
 const request = require('request');
 const lib = require('./lib');
 const cst = require('./constants');
@@ -143,7 +145,7 @@ function getMeetupTP(){
                 dataPackage.created = new Date(content[count].created);
                 (content[count].member_pay_fee===false)? dataPackage.free=true : dataPackage.free=false;
     
-                dao.insert('data', dataPackage).then(function(){
+                dao.util.insert('data', dataPackage).then(function(){
                     resolve(insertData(content, count+1, dupIds));
                 }).catch(function(){
                     console.log("Error insertion.");
@@ -230,7 +232,7 @@ function getEventPalTP(){
                     dataPackage.lng = location.lng;
                     dataPackage.address = address;
 
-                    dao.insert('data', dataPackage).then(function(){
+                    dao.util.insert('data', dataPackage).then(function(){
                         insertData(content, count+1, dupIds);
                     }).catch(function(){
                         console.log("Error insertion.");
@@ -322,7 +324,7 @@ async function getAccupassTP(){
                             dataPackage.ref = `${server}/event/${data.eventIdNumber}`;
                             dataPackage.official_id = data.eventIdNumber;
                             dataPackage.free = data.isFree;
-                            dao.insert('data', dataPackage).then(function(){
+                            dao.util.insert('data', dataPackage).then(function(){
                                 resolve(insertDataByChannel(channel, count+1, dupIds));
                             }).catch(function(err){
                                 console.log("Error insertion: ", err);

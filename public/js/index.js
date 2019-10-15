@@ -1324,7 +1324,9 @@ function clearValue(selectorArr){
     selectorArr.forEach(s=>getElement(s).value="");
 }
 function triggerStatusChange(){
-    renderMainView('all', getFilters());
+    let filters = getFilters();
+    filters.refresh = true;
+    renderMainView('all', filters);
 }
 function alertBox(message, showCancel){
     getElement('#alert-cancel').removeEventListener('click', closeAlert);

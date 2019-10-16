@@ -14,7 +14,7 @@ module.exports={
                 password: crypto.createHmac('sha256', password+cst.auth.admin.PW_SECRET).digest('hex')
             });
             if(user.length!=1){
-                return reject({erorr: "Invalid email or password."});
+                return reject({status: 403, error: "Invalid email or password."});
             }
             let access_token = crypto.createHash('sha256').update(Date.now().toString()).digest('hex');
             util.updateUserData({
@@ -22,13 +22,13 @@ module.exports={
                 access_expired: access_expired
             }, {email: email}).then(function(){
                 user[0].access_token = access_token
-                resolve({user: user[0]});
+                resolve({status: 200, user: user[0]});
             }).catch(function(){
-                reject({error: "Update user data error."});
+                reject({status: 500, error: "Update user data error."});
             });
         })
     },
-    singinFB: function(data){
+    signinFB: function(data){
         return new Promise(function(resolve, reject){
             let {access_token} = data;
             let fbUrl = `https://graph.facebook.com/me?fields=id,name,email,picture.width(300).height(300)&access_token=${access_token}`;
@@ -53,18 +53,18 @@ module.exports={
                         access_token: access_token,
                     }
                     util.insert('user', newData).then(function(){
-                        resolve({user: newData});
-                    }).catch(function(err){
-                        reject(err);
+                        resolve({status: 200, user: newData});
+                    }).catch(function(){
+                        reject({status: 500, error: "Insert data error."});
                     });
                 }else{
                     util.updateUserData({
                         access_token: access_token,
                         profile_pic: data.profile_pic,
                     }, {email: data.email}).then(function(){
-                        resolve({user: user[0]});
-                    }).catch(function(err){
-                        reject(err)
+                        resolve({status: 200, user: user[0]});
+                    }).catch(function(){
+                        reject({status: 500, error: "Update data error."});
                     });
                 }
             });

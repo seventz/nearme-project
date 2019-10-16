@@ -27,11 +27,11 @@ function signin(){
             case 400:
                 alertBox("請求格式錯誤。");
                 break;
-            case 401:
+            case 403:
                 switchElementView('.alert-text', 'flex');
                 getElement('.alert-text').innerHTML = "帳號或密碼錯誤。";
                 break;
-            case 403:
+            case 500:
                 alertBox("無法取得資料，請稍後再試。");
                 break;
         }

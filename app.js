@@ -13,7 +13,7 @@ const cst = require('./source/constants');
 const lib = require('./source/lib');
 const dao = {
 	util: require('./source/dao/util'),
-	core: require('./source/dao/util')
+	core: require('./source/dao/core')
 };
 const dataCrawler = require("./source/dataCrawler");
 
@@ -147,12 +147,13 @@ app.get('/get/activity', function(req, res){
 	let content = dao.util.getData({actl_id: req.query.actl_id});
 	let members = dao.util.getActivityMembers(req.query.actl_id);
 	Promise.all([content, members]).then(function(results){
+		let content = results[0];
 		let members = results[1];
 		members.forEach(m=>m.icon=`../img/${m.icon}.png`);
 		res.json({
 			status: 200,
 			data:{
-				content: results[0][0],
+				content: content[0] ? content[0] : null,
 				member: members
 			}
 		})
@@ -288,7 +289,7 @@ app.post('/user/signin', async function(req, res){
 
 	signinByProvider(provider).then(async function(result){
 		let preference = await dao.util.getActivityData({user_id: result.user.user_id});
-		return res.json({
+		res.json({
 			status: 200,
 			data:{
 				user_id: result.user.user_id,
@@ -306,7 +307,9 @@ app.post('/user/signin', async function(req, res){
 				}
 			})
 		});
-	})
+	}).catch(function(result){
+		res.json({status: result.status, error: result.error});
+	});
 
 	function signinByProvider(provider){
 		if(provider === 'native'){

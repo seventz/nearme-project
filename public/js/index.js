@@ -5,7 +5,7 @@ function init(){
     initPage();
     window.fbAsyncInit = fbInit;
 }
-if(document.readyState !== "loading"){init();}
+if(document.readyState!=="loading"){init();}
 else{document.addEventListener("DOMContentLoaded", init);}
 // -- Main -- //
 function initPage(){
@@ -464,28 +464,28 @@ function renderPages(info){
     }}, pageContainer);
     
     // Logic for each page click button
-    if(currentPage != 1){
+    if(currentPage!==1){
         pagePrev.addEventListener('click', function(){
             renderMainViewByPage(query, currentPage-1);
         });
     }else{
         pagePrev.classList.add('disabled');
     }
-    if(currentPage != lastPage){
+    if(currentPage!==lastPage){
         pageNext.addEventListener('click', function(){
             renderMainViewByPage(query, currentPage+1);
         });
     }else{
         pageNext.classList.add('disabled');
     }
-    if(currentPage/currentPageCount > 1){
+    if((currentPage/currentPageCount)>1){
         pagePrevAll.addEventListener('click', function(){
             renderMainViewByPage(query, currentPage-pageCount);
         });
     }else{
         pagePrevAll.classList.add('disabled');
     }
-    if(currentPageTab < pageTabs){
+    if(currentPageTab<pageTabs){
         pageNextAll.addEventListener('click', function(){
             renderMainViewByPage(query, currentPage+pageCount);
         });
@@ -637,7 +637,7 @@ function closeEdit(){
     let nameTitle = getElement('.p-u-2>.info-title');
     
     let newName = nameContent.value;
-    if(newName != misc.user.data.name){
+    if(newName!=misc.user.data.name){
         updateData.name = newName;
     }
     
@@ -958,7 +958,7 @@ function renderActivityContent(result){
             textContent: members[i].name
         }}, getElement(`.tip-${i}`));
 
-        if(misc.user.data && members[i].user_id === misc.user.data.user_id){
+        if(misc.user.data && members[i].user_id===misc.user.data.user_id){
             isJoined = true;
         }
     }
@@ -1227,10 +1227,10 @@ function showSignUpForm(){
     }}, getElement('.sign-in-btn-group'));
 }
 function signUpErrMsg(name, email, password, password2){
-    if(name.length > 30){return "名稱太長，請輸入少於30個字。"}
+    if(name.length>30){return "名稱太長，請輸入少於30個字。"}
     if(!email.includes('@')){return "請輸入正確的電子郵件。";}
-    if(password != password2){return "請輸入相同的密碼。";}
-    if(password.length < 6){return "請輸入至少六位密碼。";}
+    if(password!=password2){return "請輸入相同的密碼。";}
+    if(password.length<6){return "請輸入至少六位密碼。";}
     return false;
 }
 function logout(){

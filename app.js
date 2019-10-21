@@ -36,7 +36,7 @@ app.use(bodyparser.urlencoded({extended:true}));
 app.use(express.static("public"));
 
 // -- node-cron scheduler -- //
-cron.schedule(`53 8 */${cst.crawler.update.DAY_INTEVAL} * *`, function(){
+cron.schedule(`53 6 */${cst.crawler.update.DAY_INTEVAL} * *`, function(){
 	dataCrawler.getMeetupTP();
 	console.log("Updated Meetup automatically!");
 });
@@ -44,7 +44,7 @@ cron.schedule(`53 7 */${cst.crawler.update.DAY_INTEVAL} * *`, function(){
 	dataCrawler.getEventPalTP();
 	console.log("Updated EventPal automatically!");
 });
-cron.schedule(`53 6 */${cst.crawler.update.DAY_INTEVAL} * *`, function(){
+cron.schedule(`53 8 */${cst.crawler.update.DAY_INTEVAL} * *`, function(){
 	dataCrawler.getAccupassTP();
 	console.log("Updated Accupass automatically!");
 });
@@ -94,7 +94,7 @@ app.get('/search/title/:mode', async function(req, res){
 	let {mode} = req.params;
 	let {words} = req.query;
 	let {id_token} = req.headers;
-	if(words.length === 0){return res.json();}
+	if(words.length===0){return res.json();}
 
 	// Get last searched data from cache
 	let lastSearch = await redis.get(`${id_token}:lastTitle`).then(r=>JSON.parse(r));
@@ -143,7 +143,7 @@ app.get('/search/title/:mode', async function(req, res){
 		res.json(fitFragments);
 	}
 });
-app.get('/get/activity', function(req, res){
+app.get('/activity/:param', function(req, res){
 	let content = dao.util.getData({actl_id: req.query.actl_id});
 	let members = dao.util.getActivityMembers(req.query.actl_id);
 	Promise.all([content, members]).then(function(results){
@@ -161,7 +161,7 @@ app.get('/get/activity', function(req, res){
 		res.json({status: 500, error: "Database query error."})
 	});
 });
-app.get('/get/list/:p', async function(req, res){
+app.get('/list/:p', async function(req, res){
 	let {p} = req.params;
 	let {cat} = req.query;
 	if(p==='category'){return res.json(cst.admin.CAT);}
@@ -268,7 +268,7 @@ app.post('/upload/profile', uploadS3Profile, async function(req, res){
 	let data = req.body;
 	if(!data.user_id || data.user_id==='null')
 		return res.json({status: 401, error: "User_id required."});
-	if(data.filename != "profile")
+	if(data.filename!="profile")
 		return res.json({status: 400, error: "Invalid field name."})
 	
 	let path = req.files.profile[0].location;
@@ -312,9 +312,9 @@ app.post('/user/signin', async function(req, res){
 	});
 
 	function signinByProvider(provider){
-		if(provider === 'native'){
+		if(provider==='native'){
 			return dao.core.signinNative({email: req.body.email, password: req.body.password});
-		}else if(provider === 'facebook'){
+		}else if(provider==='facebook'){
 			return dao.core.signinFB({access_token: req.body.access_token});
 		}
 	}	
@@ -322,7 +322,7 @@ app.post('/user/signin', async function(req, res){
 app.post('/user/signup', async function(req, res){
 	let user = await dao.util.getUserData({email: req.body.email});
 	if(user.length===1){
-		return res.json({status: 409, erorr: "Duplicate email."});
+		return res.json({status: 409, error: "Duplicate email."});
 	}
 	let access_expired = Date.now() + (cst.admin.TOKEN_EXPIRED_IN_SEC * 1000);
 	let access_token = crypto.createHash('sha256').update(Date.now().toString()).digest('hex');
@@ -360,7 +360,7 @@ app.post('/user/signup', async function(req, res){
 app.get('/user/profile', bearerToken, async function(req, res){
 	let user = await dao.util.getUserData({access_token: req.token});
 	if(user.length!=1){
-		return res.json({status: 403, erorr: "Invalid token."});
+		return res.json({status: 403, error: "Invalid token."});
 	}
 	let userActl = await dao.util.getActivityData({user_id: user[0].user_id});
 	res.json({
@@ -392,7 +392,7 @@ app.get('/user/activities', function(req, res){
 app.post('/user/status/:action', bearerToken, async function(req, res){
 	let user = await dao.util.getUserData({access_token: req.token});
 	if(user.length!=1){
-		return res.json({status: 403, erorr: "Invalid token."});
+		return res.json({status: 403, error: "Invalid token."});
 	}
 	let {action} = req.params;
 	let actl_id = req.body.actl_id;
@@ -443,7 +443,7 @@ app.post('/user/status/:action', bearerToken, async function(req, res){
 app.post('/user/update/profile', bearerToken, async function(req, res){
 	let user = await dao.util.getUserData({access_token: req.token});
 	if(user.length!=1){
-		return res.json({status: 403, erorr: "Invalid token."});
+		return res.json({status: 403, error: "Invalid token."});
 	}
 	dao.util.updateUserData(req.body, {user_id: user[0].user_id}).then(function(){
 		res.json({status: 200, message: 'updated'});

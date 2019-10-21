@@ -3,11 +3,11 @@ const app = require('../app');
 
 describe('Main fetching test: ', function(){
     it('should return main categories', function(done){
-        supertest(app).get('/get/list/category')
+        supertest(app).get('/list/category')
             .expect(["custom", "official"], done);
     });
     it('get activity detail with valid id, should return "content" and "member"', async function(done){
-        let res = await supertest(app).get('/get/activity/?actl_id=2d5d6e00c48c20d9');
+        let res = await supertest(app).get('/activity/detail?actl_id=2d5d6e00c48c20d9');
         
         expect(res.status).toEqual(200);
         expect(res.body).toHaveProperty('data');
@@ -17,7 +17,7 @@ describe('Main fetching test: ', function(){
         done();
     });
     it('get activity detali with invalid id, should return empty "content" and "member"', async function(done){
-        let res = await supertest(app).get('/get/activity/?actl_id=no_such_id');
+        let res = await supertest(app).get('/activity/detail?actl_id=no_such_id');
         
         expect(res.status).toEqual(200);
         expect(res.body).toHaveProperty('data');

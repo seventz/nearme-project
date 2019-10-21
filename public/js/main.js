@@ -106,7 +106,7 @@ function fbInit(){
     FB.AppEvents.logPageView();
 };
 function fbLoginStatusChange(response){
-    if(response.status === 'connected'){
+    if(response.status==='connected'){
         let fbToken = response.authResponse.accessToken;
         fbSignin(fbToken);
     }
@@ -179,10 +179,10 @@ function uploadProfileImage(file, data){
 }
 // -- Main -- //
 function getCategory(){
-    return fetch('/get/list/category').then(r=>r.json());
+    return fetch('/list/category').then(r=>r.json());
 }
 function getType(cat){
-    return fetch(`/get/list/type?cat=${cat}`).then(r=>r.json());
+    return fetch(`/list/type?cat=${cat}`).then(r=>r.json());
 }
 function getActivityData(mode, prop){
     let queryArr = [], query = '';
@@ -204,7 +204,7 @@ function getUserActivities(ids){
     return fetch(`/user/activities?actl_id=${ids}`).then(r=>r.json());
 }
 function getActivityDetail(id){
-    return fetch(`/get/activity/?actl_id=${id}`).then(r=>r.json());
+    return fetch(`/activity/detail?actl_id=${id}`).then(r=>r.json());
 }
 // -- Search -- //
 function realtimeSearch(){
@@ -215,7 +215,7 @@ function realtimeSearch(){
     // Not include bopomofo
     let newWords = words.replace(/[\u3100-\u312F]/g, '');
     newWords = newWords.replace(/([\"\'\&\@\#\$\%\^\/\,\!\\\^\$\{\}\[\]\(\)\.\*\+\?\|\<\>\-\&])/g, "");
-    if(words.length === newWords.length){
+    if(words.length===newWords.length){
         let options = {
             method: "GET",
             headers: {id_token: localStorage.getItem('id_token')}
@@ -246,7 +246,7 @@ function keywordSearch(){
 
     let fragments = words.replace(/([\"\ \'\&\@\#\$\%\^\/\,\!\\\^\$\{\}\[\]\(\)\.\*\+\?\|\<\>\-\&])/g, ",");
     let fragmentsLength = fragments.split(',').length;
-    if(fragmentsLength!=misc.keywordCount){
+    if(fragmentsLength!==misc.keywordCount){
         // record current keyword counts
         misc.keywordCount = fragmentsLength;
         let options = {

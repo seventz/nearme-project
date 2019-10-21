@@ -249,7 +249,7 @@ function getEventPalTP(){
     function getEpEventsByLocation(result, city){
         let arr = [];
         result.forEach(function(r){
-            if(r.data.city.trim() === city)
+            if(r.data.city.trim()===city)
                 arr.push(r);
         })
         return arr;
@@ -401,7 +401,7 @@ function processAddr(city, addr){
         return city;
     }
     function splitAddr(addr){
-        if(addr.indexOf("(") >= 0){
+        if(addr.indexOf("(")>=0){
             addr = addr.replace("(", " ");
             addr = addr.replace(")", " ");
         }
